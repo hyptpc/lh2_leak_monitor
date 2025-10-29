@@ -33,8 +33,8 @@ action_lock = threading.Lock()
 # --- Settings ---
 # Specify the path to the text file you want to monitor
 # Use the absolute path
-FILE_TO_WATCH = os.path.join(SCRIPT_DIR, 'debug/H2tgtPresentStatus.txt')
-# FILE_TO_WATCH = '/home/oper/share/monitor-tmp/H2tgtPresentStatus.txt' # Or this
+# FILE_TO_WATCH = os.path.join(SCRIPT_DIR, 'debug/H2tgtPresentStatus.txt')
+FILE_TO_WATCH = '/home/sks/share/monitor-tmp/H2tgtPresentStatus.txt'
 # Polling interval (seconds)
 POLLING_INTERVAL = 1
 
