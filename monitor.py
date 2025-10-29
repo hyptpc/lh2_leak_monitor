@@ -28,7 +28,7 @@ action_lock = threading.Lock()
 # --- Settings ---
 # Specify the path to the text file you want to monitor
 # FILE_TO_WATCH = '/home/oper/share/monitor-tmp/H2tgtPresentStatus.txt'
-FILE_TO_WATCH = 'H2tgtPresentStatus.txt'
+FILE_TO_WATCH = 'debug/H2tgtPresentStatus.txt'
 # Polling interval (seconds)
 POLLING_INTERVAL = 1
 

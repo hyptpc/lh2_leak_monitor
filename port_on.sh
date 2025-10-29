@@ -1,50 +1,50 @@
 #!/bin/bash
 
-# --- 設定 (環境に合わせて確認) ---
+# --- Configuration (check and modify for your environment) ---
 
-# SSHでログインするユーザー名
+# Username for SSH login
 TARGET_USER="sks"
 
-# 対象のラズパイのIPアドレス (スペース区切りで複数指定)
+# Target Raspberry Pi IP addresses (space-separated, can specify multiple)
 TARGET_HOSTS=("192.168.20.12" "192.168.20.13")
 
-# リモート先で使用するuhubctlのフルパス
+# Full path to uhubctl on the remote host
 UHUBCTL_PATH="/usr/sbin/uhubctl"
 
-# 制御するハブの場所
+# Hub location to control
 HUB_LOCATION="1-1"
 
-# 制御するポート番号 (スペース区切り)
+# Port numbers to enable (space-separated)
 PORTS_TO_ENABLE=(1 2 3 4)
 
-# SSH接続時に "yes/no" を聞かないためのオプション
+# SSH options to skip interactive "yes/no" host key verification
 SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
-# --- スクリプト本体 ---
+# --- Main Script ---
 
-echo "USBポートの電源をONにします..."
+echo "Turning ON USB ports..."
 
-# 各ホストに対してループ
+# Loop through each host
 for host in "${TARGET_HOSTS[@]}"; do
-    echo "--- [ 対象ホスト: $host ] ---"
-    
-    # 各ポートに対してループ
+    echo "--- [ Target Host: $host ] ---"
+
+    # Loop through each port
     for port in "${PORTS_TO_ENABLE[@]}"; do
-    
-        # リモートで実行するコマンドを定義 (アクションを -a 1 に)
+
+        # Define the remote command to execute (-a 1 = power ON)
         REMOTE_CMD="sudo $UHUBCTL_PATH -l $HUB_LOCATION -p $port -a 1"
-        
-        echo "  ポート $port をONにします... (ssh $TARGET_USER@$host ...)"
-        
-        # SSH経由でコマンドを実行
+
+        echo "  Enabling port $port... (ssh $TARGET_USER@$host ...)"
+
+        # Execute the command via SSH
         ssh $SSH_OPTS "$TARGET_USER@$host" "$REMOTE_CMD"
-        
-        # 終了コードをチェック (簡易エラー表示)
+
+        # Check the exit code (simple error message)
         if [ $? -ne 0 ]; then
-            echo "  [エラー] $host のポート $port でコマンドが失敗しました。"
+            echo "  [ERROR] Command failed on $host port $port."
         fi
-        
+
     done
 done
 
-echo "--- 完了 ---"
+echo "--- All done ---"
