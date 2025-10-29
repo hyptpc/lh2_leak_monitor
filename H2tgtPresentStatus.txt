@@ -1,0 +1,28 @@
+Time: 2025/10/26 23:02:40
+#####
+Temp_Ref1st:	292.242
+Temp_CondUp:	292.242
+Temp_CondDw:	293.098
+Temp_TgtUp:	293.670
+Temp_TgtDw:	293.098
+Temp_Room:	296.580
+#####
+H2_press:	-0.40
+Heater_V:	-0.01
+Vac_cryo:	2.477e-02
+Vac_tank:	1.057e-02
+#####
+Press.diff:	419.6
+H2leak_1:	0.1
+H2leak_2:	0.1
+H2leak_3:	0.1
+#####
+Fan_ON/OFF:	1
+Ref.ON/OFF:	1
+Alert_YBox:	0
+Alert_GL860:	0
+Alert_H2leak:	0
+Alert_User:	0
+#####
+HDexhaust_flow:	9625
+#####
