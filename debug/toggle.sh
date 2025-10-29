@@ -1,7 +1,11 @@
 #!/bin/bash
 
-# File to monitor (make sure it matches the one used in the Python script)
-FILE="H2tgtPresentStatus.txt"
+# --- Get the absolute path to the directory this script is in ---
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+
+# Define the absolute path to the file (assuming it's in the same directory)
+FILE="$SCRIPT_DIR/H2tgtPresentStatus.txt"
+# -----------------------------------------------------------------
 
 # --- Script starts here ---
 
@@ -32,7 +36,7 @@ fi
 #    s/pattern/replacement/
 #    Pattern:
 #      ^\(Alert_H2leak:[[:space:]]*\)  = line starts with "Alert_H2leak:" followed by spaces,
-#                                        captured as group 1 (\1)
+#                                       captured as group 1 (\1)
 #      $current_status                 = the old value (0 or 1)
 #    Replacement:
 #      \1$new_status                   = group 1 + the new value

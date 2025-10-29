@@ -1,5 +1,7 @@
 #!/bin/bash
 
+./toggle_kikusui.py on
+
 # --- Configuration (check and modify for your environment) ---
 
 # Username for SSH login
