@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 
 # --- Load environment variables from .env file ---
 load_dotenv()
-DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 
 # Define ANSI color codes
 class COLORS:
@@ -36,16 +35,11 @@ POLLING_INTERVAL = 1
 PYTHON_SCRIPT_TO_RUN = "turn_off_hv.py"
 
 # --- Remote Pi Settings (Pi B) ---
-# Settings for the Raspberry Pis you want to control
-TARGET_PI_USER = "sks" # User on BOTH target Pis (assuming same user)
-# List of target Pi IP addresses
+TARGET_PI_USER = "sks" 
 TARGET_PI_HOSTS = [
   "192.168.20.12",
   "192.168.20.13"
 ]
-
-# Define which commands to run on ALL target hosts
-# (Assumes both Pis have the same hub setup, e.g., '1-1')
 REMOTE_COMMANDS_TO_RUN = [
   "sudo /usr/sbin/uhubctl -l 1-1 -p 1 -a 0",
   "sudo /usr/sbin/uhubctl -l 1-1 -p 2 -a 0",
@@ -59,6 +53,19 @@ SKIP_TRIGGER_FILE = "/tmp/skip.now"     # Skips wait, runs in 5s
 CANCEL_TRIGGER_FILE = "/tmp/cancel.now"   # Cancels uhubctl
 EXTEND_TRIGGER_FILE = "/tmp/extend.now"   # Resets the wait timer
 # ------------------------------------
+
+# --- 3. Load Discord URL from .env file ---
+DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
+# -----------------------------------------------
+
+# --- 4. Check if the URL was loaded ---
+if not DISCORD_WEBHOOK_URL:
+  print(f"{COLORS.FAIL}ERROR: DISCORD_WEBHOOK_URL not found in .env file.{COLORS.ENDC}")
+  print(f"{COLORS.DIM}Please create a '.env' file in the same directory and add:{COLORS.ENDC}")
+  print(f"{COLORS.DIM}DISCORD_WEBHOOK_URL=https://your-url-here{COLORS.ENDC}")
+  sys.exit(1) # Exit if the URL is not configured
+# -----------------------------------------------
+
 
 def read_h2_alert_status(filepath):
   """
@@ -87,6 +94,7 @@ def send_discord_notification(message):
   """
   Sends a message to the configured Discord Webhook.
   """
+  # URL is guaranteed to exist because of the check at startup
   data = {
     "content": f"[{time.ctime()}] {message}",
     "username": "LH2 Monitor Bot"
