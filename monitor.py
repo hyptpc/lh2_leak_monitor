@@ -39,10 +39,10 @@ FILE_TO_WATCH = '/home/sks/share/monitor-tmp/H2tgtPresentStatus.txt'
 POLLING_INTERVAL = 1
 
 # --- Action Settings (Customize these) ---
-# Use the absolute path
 HV_SCRIPT_PATH = os.path.join(SCRIPT_DIR, "turn_off_hv.py")
 KIKUSUI_SCRIPT_PATH = os.path.join(SCRIPT_DIR, "toggle_kikusui.py")
-CAEN_HV_SCRIPT_PATH = os.path.join(SCRIPT_DIR, "shutdown_caenhv1.py")
+CAEN_HV_CHAMBER_SCRIPT_PATH = os.path.join(SCRIPT_DIR, "shutdown_caenhv1_chamber.py")
+CAEN_HV_T0_SCRIPT_PATH = os.path.join(SCRIPT_DIR, "shutdown_caenhv1_T0.py")
 MASSFLOW_IN_SCRIPT_PATH  = "/home/sks/share/monitor-tools/mass-flow/mqv0002.py"
 MASSFLOW_OUT_SCRIPT_PATH = "/home/sks/share/monitor-tools/mass-flow/flow2.py"
 
@@ -120,7 +120,6 @@ def send_discord_notification(message, log_prefix="Action Log"):
   except Exception as e:
     print(f"  {COLORS.FAIL}({log_prefix}) ERROR sending Discord notification: {e}{COLORS.ENDC}")
 
-
 def run_actions():
   """
   Run the sequence of actions. This wait can be skipped,
@@ -138,7 +137,9 @@ def run_actions():
   try:
     print(f"\n  {COLORS.OKCYAN}(Action Log) --- Starting Action Sequence (Lock Acquired) ---{COLORS.ENDC}")
 
-    # Action 1: Run Python script (HV Off)
+    # +--------------------------------------------+
+    # | Action 1: Run Python script (raspi HV Off) |
+    # +--------------------------------------------+
     print(f"  {COLORS.OKCYAN}(Action Log) Action 1: Running script '{os.path.basename(HV_SCRIPT_PATH)}' (HV OFF)...{COLORS.ENDC}")
     try:
       for port in range(4):
@@ -151,7 +152,9 @@ def run_actions():
       print(f"  {COLORS.FAIL}(Action Log) ERROR: {error_msg}{COLORS.ENDC}")
       error_messages.append(error_msg)
 
-    # Action 2: Stop Mass Flow Controllers
+    # +--------------------------------------+
+    # | Action 2: Stop Mass Flow Controllers |
+    # +--------------------------------------+
     print(f"  {COLORS.OKCYAN}(Action Log) Action 2: Stopping Mass Flow Controllers...{COLORS.ENDC}")
     try:
       print(f"  {COLORS.OKCYAN}(Action Log)   -> Running '{MASSFLOW_OUT_SCRIPT_PATH} off'...{COLORS.ENDC}")
@@ -163,34 +166,44 @@ def run_actions():
       error_msg = f"Action 2 (Mass Flow Stop) failed: {e}"
       print(f"  {COLORS.FAIL}(Action Log) ERROR: {error_msg}{COLORS.ENDC}")
       error_messages.append(error_msg)
-
-    # Action 3: Shutdowns Chamber (Kikusui & CAEN HV)
-    print(f"  {COLORS.OKCYAN}(Action Log) Action 3: Running final local shutdown scripts...{COLORS.ENDC}")
+      
+    # +------------------------------------------------------------------+
+    # | Action 3: CAEN HV Shutdowns (Kikusui .42, CAEN Chamber, CAEN T0) |
+    # +------------------------------------------------------------------+
+    print(f"  {COLORS.OKCYAN}(Action Log) Action 3: Running initial local shutdown scripts...{COLORS.ENDC}")
     
     # --- (A) Kikusui BLC2 Off ---
-    print(f"  {COLORS.OKCYAN}(Action Log)   -> (A) Turning off Kikusui BLC2 (IPs: 42, 45)...{COLORS.ENDC}")
-    kikusui_ips = ["42", "45"] # IPs updated
-    for ip_octet in kikusui_ips:
-      try:
-        subprocess.run(["python3", KIKUSUI_SCRIPT_PATH, ip_octet, "off"], check=True)
-      except Exception as e:
-        error_msg = f"Action 3 (Kikusui Off for .__{ip_octet}) failed: {e}"
-        print(f"  {COLORS.FAIL}(Action Log) ERROR: {error_msg}{COLORS.ENDC}")
-        error_messages.append(error_msg)
-        
-    # --- (B) CAEN HV1 Off ---
-    print(f"  {COLORS.OKCYAN}(Action Log)   -> (B) Shutting down CAEN HV1 ('{os.path.basename(CAEN_HV_SCRIPT_PATH)}')...{COLORS.ENDC}")
+    print(f"  {COLORS.OKCYAN}(Action Log)   -> (A) Turning off Kikusui BLC2 (IP: 42)...{COLORS.ENDC}")
     try:
-      # Assuming shutdown_caenhv1.py takes no arguments
-      subprocess.run(["python3", CAEN_HV_SCRIPT_PATH], check=True)
+      subprocess.run(["python3", KIKUSUI_SCRIPT_PATH, "42", "off"], check=True)
     except Exception as e:
-      error_msg = f"Action 3 (CAEN HV1 Off) failed: {e}"
+      error_msg = f"Action 3 (Kikusui Off for .42) failed: {e}"
+      print(f"  {COLORS.FAIL}(Action Log) ERROR: {error_msg}{COLORS.ENDC}")
+      error_messages.append(error_msg)
+        
+    # --- (B) CAEN HV Chamber Off ---
+    print(f"  {COLORS.OKCYAN}(Action Log)   -> (B) Shutting down CAEN HV Chamber ('{os.path.basename(CAEN_HV_CHAMBER_SCRIPT_PATH)}')...{COLORS.ENDC}")
+    try:
+      subprocess.run(["python3", CAEN_HV_CHAMBER_SCRIPT_PATH], check=True)
+    except Exception as e:
+      error_msg = f"Action 3 (CAEN HV Chamber Off) failed: {e}"
       print(f"  {COLORS.FAIL}(Action Log) ERROR: {error_msg}{COLORS.ENDC}")
       error_messages.append(error_msg)
           
-    print(f"  {COLORS.OKCYAN}(Action Log) Action 3: Final local shutdown scripts finished.{COLORS.ENDC}")
+    # --- (C) CAEN HV T0 Off ---
+    print(f"  {COLORS.OKCYAN}(Action Log)   -> (C) Shutting down CAEN HV T0 ('{os.path.basename(CAEN_HV_T0_SCRIPT_PATH)}')...{COLORS.ENDC}")
+    try:
+      subprocess.run(["python3", CAEN_HV_T0_SCRIPT_PATH], check=True)
+    except Exception as e:
+      error_msg = f"Action 3 (CAEN HV T0 Off) failed: {e}"
+      print(f"  {COLORS.FAIL}(Action Log) ERROR: {error_msg}{COLORS.ENDC}")
+      error_messages.append(error_msg)
+          
+    print(f"  {COLORS.OKCYAN}(Action Log) Action 3: Initial local shutdown scripts finished.{COLORS.ENDC}")
 
-    # Action 4: Wait (with trigger logic AND countdown)
+    # +---------------------------------------------------+
+    # | Action 4: Wait (with trigger logic AND countdown) |
+    # +---------------------------------------------------+
     future_epoch_time = time.time() + WAIT_TIME_SECONDS
     future_time_str = time.ctime(future_epoch_time)
 
@@ -208,7 +221,7 @@ def run_actions():
       # Check for CANCEL (Priority 1)
       if os.path.exists(CANCEL_TRIGGER_FILE):
         os.system('clear')
-        print(f"\n{COLORS.WARNING}(Action Log) Action 4: CANCEL file found! Aborting subsequent shutdown steps.{COLORS.ENDC}")
+        print(f"\n{COLORS.WARNING}(Action Log) Action 4: CANCEL file found! Aborting post-wait shutdown steps.{COLORS.ENDC}")
         try: os.remove(CANCEL_TRIGGER_FILE)
         except Exception as e: print(f"{COLORS.FAIL}Error removing {CANCEL_TRIGGER_FILE}: {e}{COLORS.ENDC}")
         run_post_wait_actions = False # Do not run subsequent steps
@@ -217,7 +230,7 @@ def run_actions():
       # Check for SKIP (Priority 2)
       if os.path.exists(SKIP_TRIGGER_FILE):
         os.system('clear')
-        print(f"\n{COLORS.WARNING}(Action Log) Action 4: SKIP file found! Proceeding to shutdown steps in 5 seconds...{COLORS.ENDC}")
+        print(f"\n{COLORS.WARNING}(Action Log) Action 4: SKIP file found! Proceeding to post-wait steps in 5 seconds...{COLORS.ENDC}")
         try: os.remove(SKIP_TRIGGER_FILE)
         except Exception as e: print(f"{COLORS.FAIL}Error removing {SKIP_TRIGGER_FILE}: {e}{COLORS.ENDC}")
         wait_skipped = True
@@ -235,8 +248,8 @@ def run_actions():
         print(f"  {COLORS.OKCYAN}(Action Log)   -> WAIT EXTENDED. New shutdown time: {COLORS.BOLD}{new_future_time}{COLORS.ENDC}")
 
       os.system('clear') # Clear the terminal each second
-      print(f"{COLORS.OKCYAN}{COLORS.BOLD}--- ACTION 4: WAITING FOR REMOTE SHUTDOWN ---{COLORS.ENDC}")
-      print(f"{COLORS.OKCYAN}Remote shutdown scheduled for: {COLORS.BOLD}{time.ctime(start_time + wait_duration)}{COLORS.ENDC}")
+      print(f"{COLORS.OKCYAN}{COLORS.BOLD}--- ACTION 4: WAITING FOR FINAL SHUTDOWN ---{COLORS.ENDC}")
+      print(f"{COLORS.OKCYAN}Final shutdown scheduled for: {COLORS.BOLD}{time.ctime(start_time + wait_duration)}{COLORS.ENDC}")
       print(f"{COLORS.OKCYAN}Trigger files (use 'touch' in another terminal):{COLORS.ENDC}")
       print(f"  {COLORS.BOLD}Skip:  {SKIP_TRIGGER_FILE}{COLORS.ENDC}")
       print(f"  {COLORS.BOLD}Cancel:{CANCEL_TRIGGER_FILE}{COLORS.ENDC}")
@@ -260,17 +273,34 @@ def run_actions():
 
     # Process wait results
     if wait_skipped:
-      print(f"  {COLORS.OKCYAN}(Action Log) Action 4: Wait skipped. Waiting 5s before remote shutdown...{COLORS.ENDC}")
+      print(f"  {COLORS.OKCYAN}(Action Log) Action 4: Wait skipped. Waiting 5s before final steps...{COLORS.ENDC}")
       time.sleep(5)
     elif run_post_wait_actions:
       print(f"  {COLORS.OKCYAN}(Action Log) Action 4: Wait finished (Timeout).{COLORS.ENDC}")
     else:
       print(f"  {COLORS.OKCYAN}(Action Log) Action 4: Wait Canceled by user.{COLORS.ENDC}")
 
-
-    # Action 5: Run uhubctl REMOTELY via SSH
+    # +--------------------------------------------+
+    # | Action 5: Turn off Kikusui .45 (Post-Wait) |
+    # +--------------------------------------------+
     if run_post_wait_actions:
-      print(f"  {COLORS.OKCYAN}(Action Log) Action 5: Running remote uhubctl commands (USB OFF)...{COLORS.ENDC}")
+      print(f"  {COLORS.OKCYAN}(Action Log) Action 5: Turning off Kikusui BLC2 (IP: 45)...{COLORS.ENDC}")
+      try:
+        subprocess.run(["python3", KIKUSUI_SCRIPT_PATH, "45", "off"], check=True)
+      except Exception as e:
+        error_msg = f"Action 5 (Kikusui Off for .45) failed: {e}"
+        print(f"  {COLORS.FAIL}(Action Log) ERROR: {error_msg}{COLORS.ENDC}")
+        error_messages.append(error_msg)
+      print(f"  {COLORS.OKCYAN}(Action Log) Action 5: Kikusui .45 OFF command sent.{COLORS.ENDC}")
+    else:
+      print(f"  {COLORS.OKCYAN}(Action Log) Action 5: Skipped (Canceled).{COLORS.ENDC}")
+
+
+    # +----------------------------------------+
+    # | Action 6: Run uhubctl REMOTELY via SSH |
+    # +----------------------------------------+
+    if run_post_wait_actions:
+      print(f"  {COLORS.OKCYAN}(Action Log) Action 6: Running remote uhubctl commands (USB OFF)...{COLORS.ENDC}")
       try:
         for host in TARGET_PI_HOSTS:
           print(f"  {COLORS.OKCYAN}(Action Log)   Targeting Host: {host}{COLORS.ENDC}")
@@ -283,29 +313,31 @@ def run_actions():
             ]
             print(f"  {COLORS.OKCYAN}(Action Log)     Executing: {' '.join(ssh_command_list)}{COLORS.ENDC}")
             subprocess.run(ssh_command_list, check=True)
-        print(f"  {COLORS.OKCYAN}(Action Log) Action 5: Remote uhubctl commands finished.{COLORS.ENDC}")
+        print(f"  {COLORS.OKCYAN}(Action Log) Action 6: Remote uhubctl commands finished.{COLORS.ENDC}")
       except Exception as e:
-        error_msg = f"Action 5 (uhubctl) failed: {e}"
+        error_msg = f"Action 6 (uhubctl) failed: {e}"
         print(f"  {COLORS.FAIL}(Action Log) ERROR: {error_msg}{COLORS.ENDC}")
         error_messages.append(error_msg)
     else:
-      print(f"  {COLORS.OKCYAN}(Action Log) Action 5: Skipped (Canceled).{COLORS.ENDC}")
+      print(f"  {COLORS.OKCYAN}(Action Log) Action 6: Skipped (Canceled).{COLORS.ENDC}")
 
 
-    # Action 6: Send Discord notification
-    print(f"  {COLORS.OKCYAN}(Action Log) Action 6: Sending Discord notification...{COLORS.ENDC}")
+    # +-------------------------------------+ 
+    # | Action 7: Send Discord notification |
+    # +-------------------------------------+ 
+    print(f"  {COLORS.OKCYAN}(Action Log) Action 7: Sending Discord notification...{COLORS.ENDC}")
 
     # Construct the final status message
     status_summary = ""
     if not run_post_wait_actions:
-      status_summary = f"Process CANCELED by user. Ran Actions 1 (HV Off), 2 (Mass Flow) & 3 (Kikusui/CAEN), but Action 5 (uhubctl) was NOT executed."
+      status_summary = f"Process CANCELED by user. Ran Actions 1-3 (HV, MassFlow, Kikusui .42, CAENs), but Actions 5-6 (Kikusui .45, uhubctl) were NOT executed."
     elif error_messages:
       errors_str = "; ".join(error_messages)
       status_summary = f"Process FAILED. Errors occurred: {errors_str}"
     else:
-      status_summary = f"Process complete. All actions (1-5) executed successfully."
+      status_summary = f"Process complete. All actions (1-6) executed successfully."
 
-    send_discord_notification(status_summary, log_prefix="Action 6") # Send the constructed message
+    send_discord_notification(status_summary, log_prefix="Action 7") # Send the constructed message
 
     print(f"  {COLORS.OKCYAN}(Action Log) --- Action Sequence Finished ---{COLORS.ENDC}")
 
@@ -314,7 +346,6 @@ def run_actions():
     print("\033[?25h", end="")
     action_lock.release()
     print(f"  {COLORS.OKCYAN}(Action Log) Lock Released.{COLORS.ENDC}")
-
 
 def monitor_status_change(filepath, interval):
   """
