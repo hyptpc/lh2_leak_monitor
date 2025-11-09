@@ -28,6 +28,7 @@ else
     # If it does not exist:
     # Start the new session.
     echo "Starting new tmux session: $SESSION_NAME"
-    $TMUX_PATH new-session -d -s $SESSION_NAME -c $WORKING_DIR "$EXECUTE_COMMAND"
+    $TMUX_PATH new-session -d -s $SESSION_NAME -c $WORKING_DIR
+    $TMUX_PATH split-window -h -t $SESSION_NAME -c $WORKING_DIR "$EXECUTE_COMMAND"
     exit 0 # <--- Notify systemd of the success
 fi
