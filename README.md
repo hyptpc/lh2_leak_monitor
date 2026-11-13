@@ -98,3 +98,16 @@ loading. These tests do not verify real equipment behavior.
 is an optional systemd unit, not installed automatically. Unreadable or invalid
 input produces a warning and monitoring continues; file age is not checked.
 Credentials, logs, runtime files, and virtual environments are excluded from Git.
+
+## Service control
+
+Use the scripts in [daemon/](daemon/README.md) to manage the registered systemd
+service. sudo asks for your password in the terminal.
+
+```bash
+./daemon/status_monitor.sh
+./daemon/stop_monitor.sh       # Stop now; boot startup is unchanged.
+./daemon/disable_monitor.sh    # Stop now and disable boot startup.
+```
+
+Start/restart helpers are also provided; they launch real monitoring.
