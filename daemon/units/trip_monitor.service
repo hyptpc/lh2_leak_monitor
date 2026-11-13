@@ -1,0 +1,27 @@
+[Unit]
+Description=HV trip database monitor
+Wants=network-online.target
+After=network-online.target
+RequiresMountsFor=/misc/share /home/sks/.venv /home/sks/monitor_tools/trip_monitor
+StartLimitIntervalSec=1h
+StartLimitBurst=5
+
+[Service]
+Type=exec
+User=sks
+WorkingDirectory=/home/sks/monitor_tools/trip_monitor
+ExecStartPre=/usr/bin/test -r /home/sks/monitor_tools/trip_monitor/monitor_database.py
+ExecStartPre=/usr/bin/test -r /home/sks/monitor_tools/trip_monitor/param/conf.yml
+ExecStart=/home/sks/.venv/bin/python -u /home/sks/monitor_tools/trip_monitor/monitor_database.py param/conf.yml
+Restart=always
+RestartSec=30
+KillSignal=SIGINT
+KillMode=control-group
+TimeoutStopSec=30
+SuccessExitStatus=130
+StandardOutput=journal
+StandardError=journal
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+
+[Install]
+WantedBy=multi-user.target

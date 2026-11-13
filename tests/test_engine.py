@@ -122,7 +122,7 @@ class EngineTests(unittest.TestCase):
         self.triggers.events = [{'at': 100, 'name': 'cancel'}]
         outcome = self.engine().run_sequence()
         self.assertTrue(outcome.canceled)
-        self.assertEqual(outcome.exit_code, 2)
+        self.assertEqual(outcome.exit_code, 0)
         self.assertFalse(any(key.startswith('usb') for key in self.ids()))
         self.assertNotIn('kikusui42', self.ids())
         self.assertEqual(self.clock.now, 100)
@@ -133,6 +133,7 @@ class EngineTests(unittest.TestCase):
         outcome = self.engine().run_sequence()
         self.assertTrue(outcome.canceled)
         self.assertTrue(outcome.errors)
+        self.assertEqual(outcome.exit_code, 1)
         self.assertIn('Errors:', self.notifier.messages[-1])
 
     def test_skip_advances_to_final_steps_after_five_seconds(self):

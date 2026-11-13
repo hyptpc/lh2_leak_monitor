@@ -213,7 +213,7 @@ class AdapterTests(unittest.TestCase):
         self.assertIn('60 minutes', output.getvalue())
 
     def test_all_documented_scenarios_run_under_the_offline_guard(self):
-        for name, expected in [('failure', 1), ('cancel', 2), ('startup-alert', 0)]:
+        for name, expected in [('failure', 1), ('cancel', 0), ('startup-alert', 0)]:
             with self.subTest(name=name), redirect_stdout(StringIO()):
                 self.assertEqual(monitor.main([
                     '--simulate', '--scenario', str(ROOT / 'debug/scenarios' / f'{name}.json'),

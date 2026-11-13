@@ -1,0 +1,26 @@
+[Unit]
+Description=BLC HV monitor
+Wants=network-online.target
+After=network-online.target
+RequiresMountsFor=/misc/share /home/sks/.venv /home/sks/monitor_tools/BLC_hv_monitoring
+StartLimitIntervalSec=1h
+StartLimitBurst=5
+
+[Service]
+Type=exec
+User=sks
+WorkingDirectory=/home/sks/monitor_tools/BLC_hv_monitoring
+ExecStartPre=/usr/bin/test -r /home/sks/monitor_tools/BLC_hv_monitoring/monitor_caen.py
+ExecStartPre=/usr/bin/test -r /home/sks/monitor_tools/BLC_hv_monitoring/param/conf.yml
+ExecStart=/home/sks/.venv/bin/python -u /home/sks/monitor_tools/BLC_hv_monitoring/monitor_caen.py param/conf.yml
+Restart=always
+RestartSec=30
+KillSignal=SIGINT
+KillMode=control-group
+TimeoutStopSec=30
+SuccessExitStatus=130
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

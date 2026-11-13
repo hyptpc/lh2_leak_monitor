@@ -47,6 +47,9 @@ exec "$@"
         (cls.bin / 'systemctl').write_text('''#!/usr/bin/bash
 printf '%s\\t' systemctl "$@" >> "$FAKE_LOG"
 printf '\\n' >> "$FAKE_LOG"
+if [[ "${1:-}" == show && "${3:-}" == --property=Type && "${4:-}" == --value ]]; then
+    printf '%s\n' "${FAKE_UNIT_TYPE:-exec}"
+fi
 exit "${FAKE_SYSTEMCTL_RC:-0}"
 ''')
         for name in ('sudo', 'systemctl'):
@@ -70,10 +73,10 @@ exit "${FAKE_SYSTEMCTL_RC:-0}"
     def tearDownClass(cls):
         cls.temp.cleanup()
 
-    def run_helper(self, project, name, arguments=(), returncode=0):
+    def run_helper(self, project, name, arguments=(), returncode=0, unit_type="exec"):
         self.log.write_text('')
         environment = {'PATH': str(self.bin), 'FAKE_LOG': str(self.log),
-                       'FAKE_SYSTEMCTL_RC': str(returncode), 'LANG': 'C'}
+                       'FAKE_SYSTEMCTL_RC': str(returncode), 'FAKE_UNIT_TYPE': unit_type, 'LANG': 'C'}
         result = subprocess.run(['/usr/bin/bash', str(self.projects[project] / name), *arguments],
                                 env=environment, text=True, capture_output=True, timeout=5)
         calls = [line.rstrip('\t').split('\t') for line in self.log.read_text().splitlines()]
@@ -92,10 +95,15 @@ exit "${FAKE_SYSTEMCTL_RC:-0}"
                         self.assertEqual(len(calls), 1)
                         self.assertEqual(calls[0][:3], ['systemctl', 'show', unit])
                     else:
-                        args = ['enable' if action == 'start' else 'disable', '--now', unit]
-                        expected = [['systemctl', *args]]
-                        if os.geteuid() != 0:
-                            expected.insert(0, ['sudo', '--', 'systemctl', *args])
+                        operations = [['disable', '--now', unit]]
+                        expected = []
+                        if action == 'start':
+                            expected.append(['systemctl', 'show', unit, '--property=Type', '--value'])
+                            operations = [['reset-failed', unit], ['enable', '--now', unit]]
+                        for args in operations:
+                            if os.geteuid() != 0:
+                                expected.append(['sudo', '--', 'systemctl', *args])
+                            expected.append(['systemctl', *args])
                         self.assertEqual(calls, expected)
 
     def test_explicit_target_works_in_parent_or_renamed_directory(self):
@@ -105,6 +113,12 @@ exit "${FAKE_SYSTEMCTL_RC:-0}"
                 result, calls = self.run_helper('unknown tool', 'monitor.sh', [target])
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(calls[0][:3], ['systemctl', 'show', unit])
+
+    def test_old_oneshot_units_are_not_started(self):
+        result, calls = self.run_helper('lh2_leak_monitor', 'start.sh', unit_type='oneshot')
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0], ['systemctl', 'show', 'lh2_monitor.service', '--property=Type', '--value'])
 
     def test_default_action_is_read_only_status(self):
         result, calls = self.run_helper('lh2_leak_monitor', 'monitor.sh')

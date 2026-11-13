@@ -28,7 +28,7 @@ class Outcome:
 
     @property
     def exit_code(self):
-        return 2 if self.canceled else (1 if self.errors else 0)
+        return 1 if self.errors else 0
 
 
 class Engine:

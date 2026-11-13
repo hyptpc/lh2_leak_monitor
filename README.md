@@ -101,11 +101,16 @@ Credentials, logs, runtime files, and virtual environments are excluded from Git
 
 ## Service control
 
-Use [daemon/](daemon/README.md): `start.sh` starts the registered service and enables
-automatic startup; `stop.sh` stops it and disables automatic startup; `monitor.sh`
-shows its state. sudo asks for your password in the terminal.
+Use [daemon/](daemon/README.md): `start.sh` starts the service and enables automatic
+startup, `stop.sh` stops it and disables automatic startup, and `monitor.sh` shows
+its state. sudo asks for your password.
 
 ```bash
 ./daemon/monitor.sh
 ./daemon/stop.sh
 ```
+
+Before first use of the updated units, stop the target and install its definition
+with `sudo /usr/bin/python3 daemon/configure.py TARGET`. Installation backs up old
+units and reloads systemd without starting anything. See the daemon README for
+all targets and the bounded automatic-restart policy.

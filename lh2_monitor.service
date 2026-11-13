@@ -2,16 +2,24 @@
 Description=LH2 leak monitor
 Wants=network-online.target
 After=network-online.target
+RequiresMountsFor=/misc/share /home/sks/.venv /home/sks/share/monitor-tools/lh2_leak_monitor
 
 [Service]
-Type=simple
+Type=exec
 User=sks
 WorkingDirectory=/home/sks/share/monitor-tools/lh2_leak_monitor
-ExecStart=/home/sks/share/monitor-tools/lh2_leak_monitor/start.sh
-# Completed/canceled sequences stay stopped until an operator restarts them.
+ExecStartPre=/usr/bin/test -r /home/sks/share/monitor-tools/lh2_leak_monitor/monitor.py
+ExecStartPre=/usr/bin/test -r /home/sks/share/monitor-tools/lh2_leak_monitor/config.toml
+ExecStart=/home/sks/.venv/bin/python -u /home/sks/share/monitor-tools/lh2_leak_monitor/monitor.py --startup-alert wait
 Restart=no
+KillSignal=SIGINT
 KillMode=control-group
-TimeoutStopSec=15
+TimeoutStopSec=30
+SuccessExitStatus=130
+StandardOutput=journal
+StandardError=journal
+# Keep the operator's /tmp/skip.now, cancel.now, and extend.now visible.
+PrivateTmp=no
 
 [Install]
 WantedBy=multi-user.target

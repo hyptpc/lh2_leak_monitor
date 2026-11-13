@@ -33,17 +33,30 @@ printf 'Service: %s; action: %s\n' "$unit" "$action"
 if [[ "$action" == status ]]; then
     exec systemctl show "$unit" --no-pager \
         --property=Id --property=LoadState --property=UnitFileState \
-        --property=ActiveState --property=SubState --property=Type --property=FragmentPath
+        --property=ActiveState --property=SubState --property=Type --property=MainPID \
+        --property=NRestarts --property=Result --property=ExecMainStatus --property=FragmentPath
 fi
 
+privileged() {
+    if (( EUID == 0 )); then
+        systemctl "$@"
+    else
+        # sudo reads the password directly from the operator's terminal.
+        sudo -- systemctl "$@"
+    fi
+}
+
 if [[ "$action" == start ]]; then
-    set -- enable --now "$unit"
+    unit_type="$(systemctl show "$unit" --property=Type --value)"
+    if [[ "$unit_type" != exec ]]; then
+        printf '%s\n' 'Update the old systemd definition before starting.' >&2
+        printf 'Stop it with daemon/stop.sh, then run: sudo /usr/bin/python3 "%s/configure.py" %s\n' \
+            "$SCRIPT_DIR" "$target" >&2
+        exit 2
+    fi
+    # Only an explicit operator start resets the bounded automatic-retry budget.
+    privileged reset-failed "$unit"
+    privileged enable --now "$unit"
 else
-    set -- disable --now "$unit"
-fi
-if (( EUID == 0 )); then
-    exec systemctl "$@"
-else
-    # sudo reads the password directly from the operator's terminal.
-    exec sudo -- systemctl "$@"
+    privileged disable --now "$unit"
 fi
