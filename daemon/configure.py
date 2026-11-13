@@ -92,17 +92,24 @@ def install(targets, *, source=TEMPLATES, destination=Path('/etc/systemd/system'
             atomic_write(destination / path.name, path.read_bytes())
         # Reload definitions only. Never start, stop, enable, or restart a unit.
         tools.reload()
-    except BaseException:
+    except BaseException as failure:
+        rollback_errors = []
         for name, saved in previous.items():
             current = destination / name
-            if saved is None:
-                current.unlink(missing_ok=True)
-            else:
-                atomic_write(current, saved[0], saved[1])
+            try:
+                if saved is None:
+                    current.unlink(missing_ok=True)
+                else:
+                    atomic_write(current, saved[0], saved[1])
+            except Exception as error:
+                rollback_errors.append(f'{name}: {type(error).__name__}')
         try:
             tools.reload()
-        except Exception:
-            pass
+        except Exception as error:
+            rollback_errors.append(f'daemon-reload: {type(error).__name__}')
+        if rollback_errors:
+            raise RuntimeError('Rollback needs attention: ' + '; '.join(rollback_errors)
+                               + f'. Previous definitions are saved in {backup}') from failure
         raise
     return backup
 

@@ -171,6 +171,32 @@ class UnitTests(unittest.TestCase):
         self.assertEqual(original.read_text(), 'preserve me')
         self.assertFalse(self.backups.exists())
 
+    def test_rollback_reload_failure_reports_backup_location(self):
+        old = self.destination / 'lh2_monitor.service'
+        old.write_text('previous unit')
+        with patch.object(self.tools, 'reload', side_effect=RuntimeError('reload unavailable')):
+            with self.assertRaisesRegex(RuntimeError, 'Rollback needs attention') as error:
+                self.install(['lh2', 'blc'])
+        self.assertEqual(old.read_text(), 'previous unit')
+        self.assertFalse((self.destination / 'blc_monitor.service').exists())
+        self.assertIn(str(self.backups), str(error.exception))
+
+    def test_write_failure_restores_already_updated_units(self):
+        old = self.destination / 'lh2_monitor.service'
+        old.write_text('previous unit')
+        original_write = configure.atomic_write
+
+        def fail_second(path, content, mode=0o644):
+            if path == self.destination / 'blc_monitor.service':
+                raise OSError('simulated full filesystem')
+            return original_write(path, content, mode)
+
+        with patch.object(configure, 'atomic_write', side_effect=fail_second):
+            with self.assertRaisesRegex(OSError, 'full filesystem'):
+                self.install(['lh2', 'blc'])
+        self.assertEqual(old.read_text(), 'previous unit')
+        self.assertFalse((self.destination / 'blc_monitor.service').exists())
+
     def test_target_selection_is_fixed_and_supports_tool_directories(self):
         self.assertEqual(configure.select_targets('CVC_hv_monitoring'), ['ftof'])
         self.assertEqual(configure.select_targets('all'), ['lh2', 'blc', 'ftof', 'trip'])
