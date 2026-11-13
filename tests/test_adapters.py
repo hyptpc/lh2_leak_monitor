@@ -171,12 +171,25 @@ class AdapterTests(unittest.TestCase):
                 for thread in notifier.threads:
                     thread.join(1)
 
-    def test_default_cli_is_entirely_virtual_even_with_webhook_environment(self):
+    def test_explicit_simulation_is_virtual_even_with_webhook_environment(self):
         with patch.dict(os.environ, {'DISCORD_WEBHOOK_URL': 'https://example.invalid/not-used'}):
             with redirect_stdout(StringIO()) as output:
-                self.assertEqual(monitor.main([]), 0)
+                self.assertEqual(monitor.main(['--simulate']), 0)
         self.assertIn('VIRTUAL SIMULATION', output.getvalue())
         self.assertIn('NOT SENT', output.getvalue())
+
+    def test_normal_startup_dispatches_to_live_mode_without_running_it(self):
+        with patch.object(monitor, 'run_live', return_value=0) as live:
+            self.assertEqual(monitor.main([]), 0)
+        live.assert_called_once()
+        self.assertEqual(live.call_args.args[1], 'ask')
+
+    def test_scenario_requires_explicit_simulation_and_never_dispatches_live(self):
+        with patch.object(monitor, 'run_live') as live, redirect_stderr(StringIO()):
+            with self.assertRaises(SystemExit) as error:
+                monitor.main(['--scenario', str(ROOT / 'debug/scenarios/cancel.json')])
+        self.assertEqual(error.exception.code, 2)
+        live.assert_not_called()
 
     def test_plan_display_does_not_touch_equipment(self):
         with redirect_stdout(StringIO()) as output:
@@ -191,9 +204,9 @@ class AdapterTests(unittest.TestCase):
                     '--simulate', '--scenario', str(ROOT / 'debug/scenarios' / f'{name}.json'),
                 ]), expected)
 
-    def test_compatibility_hv_tool_is_virtual_without_explicit_live_flag(self):
+    def test_compatibility_hv_tool_has_explicit_virtual_mode(self):
         with redirect_stdout(StringIO()) as output:
-            self.assertEqual(turn_off_hv.main(['--ip_last', '12', '--port', '0']), 0)
+            self.assertEqual(turn_off_hv.main(['--ip_last', '12', '--port', '0', '--simulate']), 0)
         self.assertIn('no command sent', output.getvalue())
 
     def test_worker_propagates_exception_as_nonzero_exit(self):

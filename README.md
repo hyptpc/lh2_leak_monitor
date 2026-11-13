@@ -10,14 +10,14 @@ Python 3.11+ is required. These commands do not contact equipment or Discord:
 
 ```bash
 python3 monitor.py --show-plan
-python3 monitor.py
+python3 monitor.py --simulate
 python3 monitor.py --simulate --scenario debug/scenarios/failure.json
 python3 monitor.py --simulate --scenario debug/scenarios/cancel.json
 python3 monitor.py --simulate --scenario debug/scenarios/startup-alert.json
 python3 -m tests
 ```
 
-Running `monitor.py` without a mode selects the virtual simulation. The simulator
+Use `--simulate` explicitly for virtual testing. The simulator
 uses an in-memory clock, equipment responses, alert values, trigger events, and
 notification recorder. It does not read the live status file, read `.env`, consume
 real trigger files, start child processes, load the CAEN library, or send anything.
@@ -102,8 +102,9 @@ Exit codes: 0 = completed without reported command errors (or startup exit),
 ## Live operation
 
 **The commands above are for virtual verification. Live operation is separate.**
-`--live` enables real equipment commands and configured Discord delivery.
-`start.sh` explicitly selects live mode and the noninteractive startup policy;
+Normal startup, `python3 monitor.py`, enables real equipment commands and configured
+Discord delivery, as in the original workflow. `--live` is an optional explicit alias.
+`start.sh` selects the noninteractive startup policy and otherwise uses normal live startup;
 do not run it as a test.
 
 Python uses one bounded worker process per equipment attempt. On timeout, the
@@ -127,8 +128,8 @@ It supervises the Python process and deliberately does not restart completed or
 canceled sequences. It replaces the old oneshot/tmux service arrangement when
 explicitly deployed. Nothing installs or restarts the service automatically.
 
-The compatibility `turn_off_hv.py` tool also simulates by default and requires
-`--live` for actual commands. Other existing standalone maintenance tools are
+The compatibility `turn_off_hv.py` tool likewise uses normal live operation by default;
+add `--simulate` to inspect its command without sending it. Other standalone maintenance tools are
 not used by the new monitor and retain their own behavior.
 
 ## Code layout

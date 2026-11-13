@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compatibility HV tool. Simulates by default; --live is required for hardware."""
+"""Compatibility HV tool. Normal startup is live; --simulate sends no commands."""
 
 import argparse
 from pathlib import Path
@@ -14,12 +14,14 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--ip_last', type=int, required=True, choices=range(1, 255), metavar='1..254')
     parser.add_argument('--port', type=int, required=True, choices=range(4))
-    parser.add_argument('--live', action='store_true', help='Send REAL HV shutdown commands')
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument('--simulate', action='store_true', help='Print the command without sending it')
+    modes.add_argument('--live', action='store_true', help='Explicit live mode (also the default)')
     args = parser.parse_args(argv)
     action = Action(f'hv{args.ip_last}.{args.port}', 'HV controller', 'hv', {
         'host': f'192.168.20.{args.ip_last}', 'port': 8000, 'target_port': args.port,
     })
-    if not args.live:
+    if args.simulate:
         print(f'SIMULATED ONLY: TURN_OFF {action.parameters}; no command sent')
         return 0
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""LH2 monitor CLI. Default execution is an entirely virtual simulation."""
+"""LH2 monitor CLI. Normal startup is live; use --simulate for offline testing."""
 
 import argparse
 import json
@@ -82,22 +82,22 @@ def run_live(config, startup_policy):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     modes = parser.add_mutually_exclusive_group()
-    modes.add_argument('--simulate', action='store_true', help='Virtual simulation (default)')
-    modes.add_argument('--live', action='store_true', help='Enable REAL equipment and notifications')
+    modes.add_argument('--simulate', action='store_true', help='Use entirely virtual equipment and time')
+    modes.add_argument('--live', action='store_true', help='Explicit live mode (also the default)')
     modes.add_argument('--show-plan', action='store_true', help='Print order and addresses, then exit')
     parser.add_argument('--config', type=Path, default=ROOT / 'config.toml')
     parser.add_argument('--scenario', type=Path, help='Simulation-only JSON scenario')
     parser.add_argument('--startup-alert', choices=['ask', 'wait', 'exit'], default='ask',
                         help='Already-1 policy; ask defaults to wait without a TTY')
     args = parser.parse_args(argv)
-    if args.scenario and (args.live or args.show_plan):
-        parser.error('--scenario can only be used in simulation mode')
+    if args.scenario and not args.simulate:
+        parser.error('--scenario requires --simulate')
     try:
         config = load_config(args.config)
         if args.show_plan:
             print(format_plan(config))
             return 0
-        if args.live:
+        if not args.simulate:
             return run_live(config, args.startup_alert)
         scenario = json.loads(args.scenario.read_text()) if args.scenario else {}
         return run_simulation(config, scenario)
