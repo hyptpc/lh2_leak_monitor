@@ -1,62 +1,55 @@
 # LH2 leak monitor
 
-Monitors `Alert_H2leak` for a **0 → 1** transition and runs the configured
+Watches `Alert_H2leak` for a **0 → 1** transition and runs the configured
 shutdown sequence.
 
 ## Start
 
-Use Python 3.11+ and the existing equipment-host environment:
+Use the equipment host's Python environment:
 
 ```bash
+cd /home/sks/share/monitor-tools/lh2_leak_monitor
 python monitor.py
 ```
 
-This is **live operation**, including equipment commands and configured Discord
-notifications. If the alert is already 1 at startup, choose `q` to exit or Enter
-to wait for a new 0 → 1. Without a terminal, it waits.
+This is **normal live operation**: equipment commands and configured Discord
+notifications are enabled. If the alert is already 1 at startup, choose `q` to
+exit or Enter to wait for a new 0 → 1. Without a terminal, it waits.
 
-Live operation requires `caen_libs` and its native library, trusted SSH keys for
-the Pis, and passwordless `sudo -n` permission for `uhubctl`.
+Once triggered, recovery to 0 does not cancel the sequence. The program exits
+after completion or operator cancellation; restart it to monitor again.
 
-## Settings
+## Configuration
 
-Edit [config.toml](config.toml):
+Edit [config.toml](config.toml). Equipment addresses and order are kept here.
 
-| Section | Settings |
+| Section | Contents |
 | --- | --- |
 | `targets` | Equipment names, IP addresses, ports, and channels |
 | `sequence` | Shutdown order |
-| `monitor` | Status-file path, polling interval, wait time, log path |
+| `monitor` | Input-file path, polling interval, wait duration, log path |
 | `retry` | Attempt timeout, retry interval, maximum attempts |
-| `triggers` | Paths for operator control files |
+| `triggers` | Operator control-file paths |
 
-Show the complete order and addresses without operating equipment:
+To display the full order and addresses **without operating equipment**:
 
 ```bash
 python monitor.py --show-plan
 ```
 
-Defaults: **60 minutes** after preceding shutdown attempts finish; **10 seconds**
-per attempt, **2 seconds** between attempts, **3 attempts** total. T0 is removed;
-Kikusui .42 is last. The two mass-flow devices must both pass read-only checks
-before closing outlet, then inlet. Remaining closure failures are recorded as
-critical; independent equipment shutdowns continue.
+Default order: **HV → mass-flow pair → Kikusui .45 → CAEN Chamber →
+60-minute wait → USB power → Kikusui .42**. The wait starts after the preceding
+shutdown attempts finish. Each equipment attempt has a **10-second** limit,
+with **2 seconds** between attempts and **3 attempts** total.
 
-Store CAEN credentials and the optional Discord webhook locally:
+Both mass-flow devices must pass read-only checks before closing outlet, then
+inlet. If either check fails, neither close command is sent. A failure after
+closure starts is reported as a critical incomplete closure; other equipment
+shutdowns continue. Two independent valves cannot be guaranteed to close atomically.
 
-```bash
-cp .env.example .env
-chmod 600 .env
-```
+## Controls during the wait
 
-Fill in `CAEN_USERNAME`, `CAEN_PASSWORD`, and optionally `DISCORD_WEBHOOK_URL`.
-Loading `.env` requires `python-dotenv`; exported environment variables also work.
-Missing CAEN credentials stop live startup before any equipment commands.
-An empty Discord URL disables notifications. **Never commit the filled-in file.**
-
-## During the wait
-
-Create a control file in another terminal:
+Create a file from another terminal:
 
 | Command | Effect |
 | --- | --- |
@@ -64,15 +57,32 @@ Create a control file in another terminal:
 | `touch /tmp/cancel.now` | Cancel remaining steps and exit the monitor |
 | `touch /tmp/extend.now` | Reset the wait to 60 minutes |
 
-These controls apply only during the wait. A recovered alert does not cancel a
-started sequence. The program exits after completion or cancellation.
-Unreadable/invalid input produces a warning and monitoring continues; file age
-is not checked. Logs are saved to `logs/monitor.log`.
+These controls apply only during the wait. Old control files are cleared at
+startup. If no control file is created, final power-off proceeds automatically
+after 60 minutes. Logs are saved to `logs/monitor.log`.
+
+## First-time setup
+
+Python 3.11+, `caen_libs` with its native library, and the equipment host's SSH
+access are required. The Pis need trusted host keys and passwordless `sudo -n`
+permission for `uhubctl`.
+
+Create a local credential file if one does not already exist:
+
+```bash
+cp -n .env.example .env
+chmod 600 .env
+```
+
+Set `CAEN_USERNAME` and `CAEN_PASSWORD`. Optionally set `DISCORD_WEBHOOK_URL`;
+leave it empty to disable notifications. Loading `.env` requires `python-dotenv`;
+exported environment variables also work. Missing CAEN credentials stop startup
+before equipment commands. **Never commit `.env` or actual credentials.**
 
 ## Offline testing
 
-**Use `--simulate` for testing.** Virtual time, devices, inputs, and notifications
-are used; no equipment or Discord communication occurs.
+**Add `--simulate` for tests.** It uses virtual devices, inputs, time, and
+notifications; it does not contact equipment or Discord or read live input files.
 
 ```bash
 python monitor.py --simulate
@@ -82,10 +92,9 @@ python -m tests
 ```
 
 The test runner blocks real networking, subprocess creation, and CAEN-library
-loading. Real equipment behavior has not been validated by these tests.
+loading. These tests do not verify real equipment behavior.
 
-`start.sh` is a foreground **live** launcher for the equipment host. An example
-systemd unit is provided in [lh2_monitor.service](lh2_monitor.service); it is not
-installed automatically. Credentials, logs, runtime files, virtual environments,
-and `config.local.toml` are excluded from Git; an optional local configuration
-can be selected with `--config config.local.toml`.
+`start.sh` is a foreground **live** launcher; [lh2_monitor.service](lh2_monitor.service)
+is an optional systemd unit, not installed automatically. Unreadable or invalid
+input produces a warning and monitoring continues; file age is not checked.
+Credentials, logs, runtime files, and virtual environments are excluded from Git.
