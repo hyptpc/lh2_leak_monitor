@@ -1,56 +1,41 @@
 # Monitor service controls
 
-These scripts manage the existing **systemd service**. They do not install or
-rewrite service definitions, and they do not store passwords. Run them in your
-terminal; `sudo` asks for your password when required.
+| Script | Effect |
+| --- | --- |
+| `start.sh` | Enable automatic startup and start the service |
+| `stop.sh` | Disable automatic startup and stop the service |
+| `monitor.sh` | Show service state; no sudo |
+
+Run in your terminal. sudo asks for your password when needed; passwords are
+not stored. **Start launches real monitoring.**
 
 From an individual tool directory:
 
 ```bash
-./daemon/status_monitor.sh
-./daemon/stop_monitor.sh
-./daemon/disable_monitor.sh
+./daemon/monitor.sh
+./daemon/stop.sh
 ```
-
-| Script | Effect |
-| --- | --- |
-| `start_monitor.sh` | Start the registered monitor now |
-| `stop_monitor.sh` | Stop now; leave boot startup unchanged |
-| `restart_monitor.sh` | Stop and start the registered monitor |
-| `status_monitor.sh` | Show systemd state; no sudo |
-| `enable_monitor.sh` | Enable boot startup; do not start now |
-| `disable_monitor.sh` | Stop now **and** disable boot startup |
-
-**Start/restart launch real monitoring and may lead to equipment commands.**
-Use neither command as a test.
-
-The unit is inferred from the tool directory name:
-
-| Directory / explicit target | Unit |
-| --- | --- |
-| `lh2_leak_monitor` / `lh2` | `lh2_monitor.service` |
-| `BLC_hv_monitoring` / `blc` | `blc_monitor.service` |
-| `CVC_hv_monitoring` / `ftof` | `ftof_monitor.service` |
-| `trip_monitor` / `trip` | `trip_monitor.service` |
 
 From the parent `monitor-tools` directory, specify the target:
 
 ```bash
-./daemon/disable_monitor.sh lh2
-./daemon/status_monitor.sh lh2
-./daemon/monitor.sh status blc
+./daemon/monitor.sh lh2
+./daemon/stop.sh lh2
 ```
 
-The generic interface is `./daemon/monitor.sh ACTION [TARGET]`.
-Service definitions decide which checkout is started. Existing tmux/oneshot
-units can show `active (exited)` after the Python process has ended; this is
-systemd state, not proof that monitoring is alive. Use restart only when you
-intend to relaunch it. Errors from sudo/systemctl are returned to the terminal.
+| Target | Tool directory | Unit |
+| --- | --- | --- |
+| `lh2` | `lh2_leak_monitor` | `lh2_monitor.service` |
+| `blc` | `BLC_hv_monitoring` | `blc_monitor.service` |
+| `ftof` | `CVC_hv_monitoring` | `ftof_monitor.service` |
+| `trip` | `trip_monitor` | `trip_monitor.service` |
 
-For monitoring started directly with `python monitor.py`, use Ctrl+C in that
-terminal. These scripts operate the registered service.
+These scripts control the registered systemd service. For a monitor started
+directly in a terminal, use Ctrl+C there. Existing oneshot/tmux units may show
+`active (exited)` after Python has ended; status is systemd state, not a process
+health check.
 
-Offline shell checks (fake sudo/systemctl only):
+Offline shell checks, with fake sudo/systemctl only:
 
 ```bash
 python daemon/test_monitor_scripts.py

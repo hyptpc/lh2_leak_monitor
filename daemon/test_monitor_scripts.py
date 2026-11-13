@@ -84,15 +84,15 @@ exit "${FAKE_SYSTEMCTL_RC:-0}"
                               ('BLC_hv_monitoring', 'blc_monitor.service'),
                               ('CVC_hv_monitoring', 'ftof_monitor.service'),
                               ('trip_monitor', 'trip_monitor.service')]:
-            for action in ('start', 'stop', 'restart', 'status', 'enable', 'disable'):
+            for action in ('start', 'stop', 'status'):
                 with self.subTest(project=project, action=action):
-                    result, calls = self.run_helper(project, action + '_monitor.sh')
+                    result, calls = self.run_helper(project, ('monitor.sh' if action == 'status' else action + '.sh'))
                     self.assertEqual(result.returncode, 0, result.stderr)
                     if action == 'status':
                         self.assertEqual(len(calls), 1)
                         self.assertEqual(calls[0][:3], ['systemctl', 'show', unit])
                     else:
-                        args = ['disable', '--now', unit] if action == 'disable' else [action, unit]
+                        args = ['enable' if action == 'start' else 'disable', '--now', unit]
                         expected = [['systemctl', *args]]
                         if os.geteuid() != 0:
                             expected.insert(0, ['sudo', '--', 'systemctl', *args])
@@ -102,7 +102,7 @@ exit "${FAKE_SYSTEMCTL_RC:-0}"
         for target, unit in [('lh2', 'lh2_monitor.service'), ('blc', 'blc_monitor.service'),
                              ('ftof', 'ftof_monitor.service'), ('trip', 'trip_monitor.service')]:
             with self.subTest(target=target):
-                result, calls = self.run_helper('unknown tool', 'status_monitor.sh', [target])
+                result, calls = self.run_helper('unknown tool', 'monitor.sh', [target])
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(calls[0][:3], ['systemctl', 'show', unit])
 
@@ -120,7 +120,7 @@ exit "${FAKE_SYSTEMCTL_RC:-0}"
                 self.assertEqual(calls, [])
 
     def test_unknown_default_directory_does_nothing(self):
-        result, calls = self.run_helper('unknown tool', 'stop_monitor.sh')
+        result, calls = self.run_helper('unknown tool', 'stop.sh')
         self.assertEqual(result.returncode, 2)
         self.assertEqual(calls, [])
 
@@ -130,9 +130,9 @@ exit "${FAKE_SYSTEMCTL_RC:-0}"
         self.assertEqual(calls, [])
 
     def test_backend_errors_are_not_hidden(self):
-        for action in ('start', 'stop', 'restart', 'status', 'enable', 'disable'):
+        for action in ('start', 'stop', 'status'):
             with self.subTest(action=action):
-                result, _ = self.run_helper('lh2_leak_monitor', action + '_monitor.sh', returncode=7)
+                result, _ = self.run_helper('lh2_leak_monitor', ('monitor.sh' if action == 'status' else action + '.sh'), returncode=7)
                 self.assertEqual(result.returncode, 7)
 
 

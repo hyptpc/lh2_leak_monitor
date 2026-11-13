@@ -3,29 +3,24 @@ set -euo pipefail
 
 usage() {
     printf '%s\n' \
-        'Usage: monitor.sh {start|stop|restart|status|enable|disable} [lh2|blc|ftof|trip]' \
-        'In a tool directory, the target is inferred from its directory name.' \
-        'start/restart: run the real registered monitor.' \
-        'stop: stop now, preserving boot registration.' \
-        'enable: enable boot startup without starting now.' \
-        'disable: stop now and disable boot startup.' \
-        'status: show systemd state without sudo.'
+        'Usage: daemon/start.sh [TARGET] | daemon/stop.sh [TARGET] | daemon/monitor.sh [TARGET]' \
+        'TARGET: lh2, blc, ftof, or trip; inferred in individual tool directories.' \
+        'start.sh: enable boot startup and start the service.' \
+        'stop.sh: disable boot startup and stop the service.' \
+        'monitor.sh: show service state without sudo.'
 }
 
-if (( $# > 2 )); then
-    usage >&2
-    exit 2
-fi
-action="${1:-status}"
-case "$action" in
-    -h|--help|help) usage; exit 0 ;;
-    start|stop|restart|status|enable|disable) ;;
-    *) printf 'Unknown action: %s\n' "$action" >&2; usage >&2; exit 2 ;;
+action=status
+case "${1:-}" in
+    --start) action=start; shift ;;
+    --stop) action=stop; shift ;;
+    -h|--help) usage; exit 0 ;;
 esac
+if (( $# > 1 )); then usage >&2; exit 2; fi
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 TOOL_DIR="${SCRIPT_DIR%/*}"
-target="${2:-${TOOL_DIR##*/}}"
+target="${1:-${TOOL_DIR##*/}}"
 case "$target" in
     lh2|lh2_leak_monitor) unit='lh2_monitor.service' ;;
     blc|BLC_hv_monitoring) unit='blc_monitor.service' ;;
@@ -41,14 +36,14 @@ if [[ "$action" == status ]]; then
         --property=ActiveState --property=SubState --property=Type --property=FragmentPath
 fi
 
-if [[ "$action" == disable ]]; then
-    set -- disable --now "$unit"
+if [[ "$action" == start ]]; then
+    set -- enable --now "$unit"
 else
-    set -- "$action" "$unit"
+    set -- disable --now "$unit"
 fi
 if (( EUID == 0 )); then
     exec systemctl "$@"
 else
-    # Keep stdin/TTY attached so sudo can ask the operator for a password.
+    # sudo reads the password directly from the operator's terminal.
     exec sudo -- systemctl "$@"
 fi
