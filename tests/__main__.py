@@ -12,6 +12,7 @@ FORBIDDEN_EVENTS = {
     'os.exec', 'os.kill', 'os.killpg', 'urllib.Request', 'ctypes.dlopen',
 }
 PRODUCTION_FILES = {'/tmp/skip.now', '/tmp/cancel.now', '/tmp/extend.now'}
+PRODUCTION_DIRECTORIES = ('/home/sks/share/monitor-tmp/', '/misc/share/monitor-tmp/')
 
 
 def guard(event, args):
@@ -23,8 +24,11 @@ def guard(event, args):
         for value in args[:2]:
             if isinstance(value, (str, bytes, os.PathLike)):
                 path = os.fsdecode(value)
-                if (path in PRODUCTION_FILES or path.startswith('/home/sks/')
-                        or path.startswith('/misc/share/')):
+                # The source checkout may itself be under /home/sks or /misc/share.
+                # Block operational inputs/secrets, while allowing source/config
+                # and test fixtures to be read on the equipment host as well.
+                if (path in PRODUCTION_FILES or path.startswith(PRODUCTION_DIRECTORIES)
+                        or Path(path).name == '.env'):
                     raise RuntimeError(f'OFFLINE TEST GUARD: production path {path}')
 
 
