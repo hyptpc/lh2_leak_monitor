@@ -11,6 +11,7 @@ import subprocess
 import time
 
 from .config import RetryPolicy
+from .credentials import caen_credentials
 
 
 def hv_off(parameters, timeout):
@@ -48,10 +49,11 @@ def kikusui_off(parameters, timeout):
 
 def caen_operation(parameters, timeout, *, inventory=False):
     # The C library can block. The parent process enforces the timeout.
+    username, password = caen_credentials()
     from caen_libs import caenhvwrapper as hv
 
     with hv.Device.open(hv.SystemType.SY1527, hv.LinkType.TCPIP,
-                        parameters['host'], 'admin', 'admin') as device:
+                        parameters['host'], username, password) as device:
         board = next((board for board in device.get_crate_map()
                       if board is not None and board.slot == parameters['slot']), None)
         if board is None or board.n_channel <= 0:

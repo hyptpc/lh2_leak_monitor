@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from caen_libs import caenhvwrapper as hv
+from lh2_monitor.credentials import caen_credentials, load_environment
 
 host = '192.168.20.51' # caenhv1
 systype = 'SY1527'
@@ -7,8 +7,12 @@ linktype = 'TCPIP'
 
 #______________________________________________________________________________
 def main():
+  load_environment()
+  username, password = caen_credentials()
+  from caen_libs import caenhvwrapper as hv
+
   with hv.Device.open(hv.SystemType[systype], hv.LinkType[linktype],
-                      host, 'admin', 'admin') as device:
+                      host, username, password) as device:
     slots = device.get_crate_map()
     for board in slots:
       if board is None or board.slot != 4:

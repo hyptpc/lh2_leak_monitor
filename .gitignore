@@ -1,6 +1,36 @@
+# Local credentials. Only the empty template belongs in Git.
 .env
+.env.*
+!.env.example
+secrets/
+credentials/
+id_rsa
+id_ed25519
+*.pem
+*.key
+*.p12
+*.pfx
 
+# Optional machine-specific configuration.
+config.local.toml
+config.*.local.toml
+
+# Python environments and generated files.
+.venv/
+venv/
 __pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Runtime output and editor temporary files.
 logs/
 runtime/
-*.pyc
+*.log
+*.swp
+*.swo
+*~
+.DS_Store

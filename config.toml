@@ -1,4 +1,4 @@
-# Full addresses and shutdown order live here. Changing this file affects --live.
+# Equipment addresses and shutdown order, used by normal monitor.py startup.
 [monitor]
 status_file = "/home/sks/share/monitor-tmp/H2tgtPresentStatus.txt"
 poll_seconds = 1

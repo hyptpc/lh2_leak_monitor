@@ -191,6 +191,21 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(error.exception.code, 2)
         live.assert_not_called()
 
+    def test_live_startup_without_caen_credentials_stops_before_any_operation(self):
+        config = load_config(ROOT / 'config.toml')
+        with patch.dict(os.environ, {}, clear=True), \
+                patch('lh2_monitor.credentials.load_environment', return_value=False), \
+                patch('lh2_monitor.adapters.make_logger', return_value=self.log), \
+                patch('lh2_monitor.adapters.MonitorLock'), \
+                patch('lh2_monitor.adapters.FileTriggers'), \
+                patch('lh2_monitor.adapters.ProcessExecutor') as executor, \
+                patch('lh2_monitor.adapters.DiscordNotifier') as notifier, \
+                patch('lh2_monitor.adapters.read_status', side_effect=AssertionError('unexpected read')) as read:
+            self.assertEqual(monitor.run_live(config, 'wait'), 1)
+        executor.assert_not_called()
+        notifier.assert_not_called()
+        read.assert_not_called()
+
     def test_plan_display_does_not_touch_equipment(self):
         with redirect_stdout(StringIO()) as output:
             self.assertEqual(monitor.main(['--show-plan']), 0)
@@ -254,7 +269,9 @@ class HardwareAdapterTests(unittest.TestCase):
             LinkType=types.SimpleNamespace(TCPIP='TCPIP'))
         module = types.ModuleType('caen_libs')
         module.caenhvwrapper = hv
-        with patch.dict(sys.modules, {'caen_libs': module}):
+        with patch.dict(sys.modules, {'caen_libs': module}), patch.dict(os.environ, {
+            'CAEN_USERNAME': 'test-user', 'CAEN_PASSWORD': 'test-password',
+        }):
             result = caen_operation({'host': '192.0.2.1', 'slot': 4}, 10, inventory=True)
             self.assertEqual(result['channels'], [0, 1])
             device.set_ch_param.assert_not_called()

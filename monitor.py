@@ -45,6 +45,7 @@ def run_live(config, startup_policy):
         DiscordNotifier, FileTriggers, MonitorLock, ProcessExecutor,
         make_logger, read_status, startup_choice,
     )
+    from lh2_monitor.credentials import caen_credentials, load_environment
 
     log = make_logger(config.log_file)
     notifier = None
@@ -55,12 +56,11 @@ def run_live(config, startup_policy):
             triggers = FileTriggers(config.triggers, log)
             # Remove stale requests before monitoring, protected by the process lock.
             triggers.clear()
-            try:
-                from dotenv import load_dotenv
-            except ImportError:
+            if not load_environment():
                 log('WARNING', 'python-dotenv unavailable; using environment variables only')
-            else:
-                load_dotenv(ROOT / '.env')
+            if any(action.kind == 'caen' for action in config.actions):
+                # Fail before ANY equipment command if required credentials are absent.
+                caen_credentials()
             notifier = DiscordNotifier(os.environ.get('DISCORD_WEBHOOK_URL'),
                                        config.retry.attempt_timeout_seconds, log)
             engine = Engine(config, ProcessExecutor(log), notifier, time, triggers, log)
