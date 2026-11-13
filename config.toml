@@ -1,0 +1,111 @@
+# Full addresses and shutdown order live here. Changing this file affects --live.
+[monitor]
+status_file = "/home/sks/share/monitor-tmp/H2tgtPresentStatus.txt"
+poll_seconds = 1
+wait_seconds = 3600
+skip_delay_seconds = 5
+log_file = "logs/monitor.log"
+lock_file = "runtime/monitor.lock"
+
+[retry]
+attempt_timeout_seconds = 10
+delay_seconds = 2
+max_attempts = 3 # Includes the first attempt.
+
+[triggers]
+skip = "/tmp/skip.now"
+cancel = "/tmp/cancel.now"
+extend = "/tmp/extend.now"
+
+[targets.hv12]
+name = "HV controller .12"
+kind = "hv"
+host = "192.168.20.12"
+port = 8000
+ports = [0, 1, 2, 3]
+
+[targets.hv13]
+name = "HV controller .13"
+kind = "hv"
+host = "192.168.20.13"
+port = 8000
+ports = [0, 1, 2, 3]
+
+[targets.hv91]
+name = "HV controller .91"
+kind = "hv"
+host = "192.168.20.91"
+port = 8000
+ports = [0, 1, 2, 3]
+
+[targets.flow_out]
+name = "Outlet mass-flow valve"
+kind = "massflow"
+host = "192.168.20.17"
+port = 4196
+address = 1
+
+[targets.flow_in]
+name = "Inlet mass-flow valve"
+kind = "massflow"
+host = "192.168.20.14"
+port = 4001
+address = 1
+
+[targets.kikusui45]
+name = "Kikusui BLC2 Vth"
+kind = "kikusui"
+host = "192.168.20.45"
+port = 5025
+
+[targets.chamber]
+name = "CAEN Chamber"
+kind = "caen"
+host = "192.168.20.51"
+slot = 4
+
+[targets.usb12]
+name = "Pi .12 USB power"
+kind = "usb"
+host = "192.168.20.12"
+user = "sks"
+hub = "1-1"
+ports = [1, 2, 3, 4]
+
+[targets.usb13]
+name = "Pi .13 USB power"
+kind = "usb"
+host = "192.168.20.13"
+user = "sks"
+hub = "1-1"
+ports = [1, 2, 3, 4]
+
+[targets.kikusui42]
+name = "Kikusui BLC2 (last)"
+kind = "kikusui"
+host = "192.168.20.42"
+port = 5025
+
+# Preserve this order. Each HV/USB port is attempted separately.
+[[sequence]]
+target = "hv12"
+[[sequence]]
+target = "hv13"
+[[sequence]]
+target = "hv91"
+[[sequence]]
+kind = "massflow_pair"
+outlet = "flow_out"
+inlet = "flow_in"
+[[sequence]]
+target = "kikusui45"
+[[sequence]]
+target = "chamber"
+[[sequence]]
+kind = "wait"
+[[sequence]]
+target = "usb12"
+[[sequence]]
+target = "usb13"
+[[sequence]]
+target = "kikusui42"

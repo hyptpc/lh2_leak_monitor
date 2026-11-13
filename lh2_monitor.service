@@ -1,0 +1,17 @@
+[Unit]
+Description=LH2 leak monitor
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=sks
+WorkingDirectory=/home/sks/share/monitor-tools/lh2_leak_monitor
+ExecStart=/home/sks/share/monitor-tools/lh2_leak_monitor/start.sh
+# Completed/canceled sequences stay stopped until an operator restarts them.
+Restart=no
+KillMode=control-group
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

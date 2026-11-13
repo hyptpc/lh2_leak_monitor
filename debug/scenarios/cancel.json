@@ -1,0 +1,4 @@
+{
+  "status": ["0", "1"],
+  "triggers": [{"at": 60, "name": "cancel"}]
+}

@@ -1,86 +1,39 @@
-import requests
-import json
+#!/usr/bin/env python3
+"""Compatibility HV tool. Simulates by default; --live is required for hardware."""
+
 import argparse
+from pathlib import Path
+import sys
 import time
 
-# --- Constants ---
-DEFAULT_CONTROLLER_PORT = 8000
-IP_BASE = "192.168.20." # Assuming the first three parts are fixed
-RETRY_DELAY_SECONDS = 2
-
-def send_turn_off_command(controller_ip_last: str, target_port_id: int):
-    """
-    Sends the TURN_OFF command to the specified port on the HV controller.
-    Retries indefinitely until successful.
-    """
-    controller_ip = IP_BASE + controller_ip_last
-    api_url = f"http://{controller_ip}:{DEFAULT_CONTROLLER_PORT}/serial/command"
-    payload = {
-        "port_id": target_port_id,
-        "command_type": "TURN_OFF",
-    }
-
-    while True: # Loop indefinitely until success
-        try:
-            # Send HTTP POST request
-            response = requests.post(
-                api_url,
-                headers={"Content-Type": "application/json"},
-                json=payload,
-                timeout=10 # Set timeout to 10 seconds
-            )
-
-            # Check server response
-            response.raise_for_status() # Raise exception for non-2xx status codes
-
-            # If successful, break the loop
-            # No print statement for success as requested
-            # print("Success!")
-            # print(f"Server response: {response.json()}")
-            break # Exit the while loop on success
-
-        except requests.exceptions.ConnectionError as e:
-            print(f"\nError: Could not connect to controller at {controller_ip}:{DEFAULT_CONTROLLER_PORT}.")
-            print(f"Details: {e}")
-            print(f"Retrying in {RETRY_DELAY_SECONDS} seconds...")
-
-        except requests.exceptions.Timeout:
-            print(f"\nError: Request to controller timed out.")
-            print(f"Retrying in {RETRY_DELAY_SECONDS} seconds...")
-
-        except requests.exceptions.RequestException as e:
-            print(f"\nAn error occurred: {e}")
-            try:
-                # Attempt to print server error details if available
-                print(f"Server error details: {response.text}")
-            except NameError:
-                pass # response might not be defined if connection failed early
-            except Exception as detail_err:
-                 print(f"(Could not get error details: {detail_err})")
-            print(f"Retrying in {RETRY_DELAY_SECONDS} seconds...")
-
-        # Wait before retrying
-        time.sleep(RETRY_DELAY_SECONDS)
+from lh2_monitor.config import Action, load_config
+from lh2_monitor.engine import Engine
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Send TURN_OFF command to HV Controller.")
-    parser.add_argument(
-        "--ip_last",
-        type=str,
-        required=True,
-        help="The last section of the HV Controller's IP address (e.g., '40' for 192.168.20.40)."
-    )
-    parser.add_argument(
-        "--port",
-        type=int,
-        required=True,
-        help="The target Port ID to turn off."
-    )
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--ip_last', type=int, required=True, choices=range(1, 255), metavar='1..254')
+    parser.add_argument('--port', type=int, required=True, choices=range(4))
+    parser.add_argument('--live', action='store_true', help='Send REAL HV shutdown commands')
+    args = parser.parse_args(argv)
+    action = Action(f'hv{args.ip_last}.{args.port}', 'HV controller', 'hv', {
+        'host': f'192.168.20.{args.ip_last}', 'port': 8000, 'target_port': args.port,
+    })
+    if not args.live:
+        print(f'SIMULATED ONLY: TURN_OFF {action.parameters}; no command sent')
+        return 0
 
-    args = parser.parse_args()
+    from lh2_monitor.adapters import ProcessExecutor
 
-    # Call the function to send the command with retries
-    send_turn_off_command(args.ip_last, args.port)
-    # The script will only exit this function call upon success.
-    print(f"TURN_OFF command successfully sent to Port {args.port} on {IP_BASE}{args.ip_last}.")
+    config = load_config(Path(__file__).resolve().parent / 'config.toml')
+
+    def log(level, message):
+        print(f'{level}: {message}', flush=True)
+
+    engine = Engine(config, ProcessExecutor(log), None, time, None, log)
+    _, error = engine.execute(action)
+    return 1 if error else 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())
