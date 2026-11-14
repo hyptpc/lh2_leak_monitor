@@ -2,17 +2,17 @@
 Description=FTOF HV monitor
 Wants=network-online.target
 After=network-online.target
-RequiresMountsFor=/misc/share /home/sks/.venv /home/sks/share/monitor-tools/CVC_hv_monitoring
+RequiresMountsFor=/misc/share /home/sks/.venv /home/sks/monitor_tools/CVC_hv_monitoring
 StartLimitIntervalSec=1h
 StartLimitBurst=5
 
 [Service]
 Type=exec
 User=sks
-WorkingDirectory=/home/sks/share/monitor-tools/CVC_hv_monitoring
-ExecStartPre=/usr/bin/test -r /home/sks/share/monitor-tools/CVC_hv_monitoring/monitor_caen.py
-ExecStartPre=/usr/bin/test -r /home/sks/share/monitor-tools/CVC_hv_monitoring/param/conf.yml
-ExecStart=/home/sks/.venv/bin/python -u /home/sks/share/monitor-tools/CVC_hv_monitoring/monitor_caen.py param/conf.yml
+WorkingDirectory=/home/sks/monitor_tools/CVC_hv_monitoring
+ExecStartPre=/usr/bin/test -r /home/sks/monitor_tools/CVC_hv_monitoring/monitor_caen.py
+ExecStartPre=/usr/bin/test -r /home/sks/monitor_tools/CVC_hv_monitoring/param/conf.yml
+ExecStart=/home/sks/.venv/bin/python -u /home/sks/monitor_tools/CVC_hv_monitoring/monitor_caen.py param/conf.yml
 Restart=always
 RestartSec=30
 KillSignal=SIGINT

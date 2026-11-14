@@ -14,7 +14,7 @@ monitoring.** From an individual tool directory, no target is needed:
 ./daemon/stop.sh
 ```
 
-From the parent `monitor-tools` directory, specify `lh2`, `blc`, `ftof`, or
+From `/home/sks/monitor_tools`, specify `lh2`, `blc`, `ftof`, or
 `trip`, for example `./daemon/stop.sh lh2`. FTOF corresponds to the
 `CVC_hv_monitoring` directory. Services manage Python directly, without tmux.
 
@@ -49,8 +49,9 @@ python daemon/configure.py --check all
 - After fixing the cause, an explicit `start.sh` resets the retry limit.
   A manual `stop.sh` never triggers automatic restart.
 
-Units wait for the shared filesystem and use the existing per-tool configuration
-paths. Logs are available with `journalctl -u lh2_monitor.service -f` (replace the
+LH2 code stays in `/home/sks/share/monitor-tools/lh2_leak_monitor`. BLC,
+FTOF, Trip, and common controls use `/home/sks/monitor_tools`. Input files and
+databases keep their existing shared paths, so units still wait for that mount. Logs are available with `journalctl -u lh2_monitor.service -f` (replace the
 unit name as needed). Trip's audio runtime is configured for the existing sks
 user; actual audio and equipment behavior are not exercised by offline tests.
 

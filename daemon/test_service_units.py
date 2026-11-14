@@ -106,9 +106,9 @@ class UnitTests(unittest.TestCase):
                 self.assertIn('StartLimitIntervalSec=1h\n', text)
                 self.assertIn('StartLimitBurst=5\n', text)
 
-    def test_existing_blc_ftof_trip_config_paths_are_preserved(self):
+    def test_monitor_code_locations_match_deployment(self):
         expected = {'blc': '/home/sks/monitor_tools/BLC_hv_monitoring',
-                    'ftof': '/home/sks/share/monitor-tools/CVC_hv_monitoring',
+                    'ftof': '/home/sks/monitor_tools/CVC_hv_monitoring',
                     'trip': '/home/sks/monitor_tools/trip_monitor'}
         for target, directory in expected.items():
             text = (HERE / 'units' / configure.UNITS[target]).read_text()
