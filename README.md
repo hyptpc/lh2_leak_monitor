@@ -57,8 +57,9 @@ Create a file from another terminal:
 | `touch /tmp/cancel.now` | Cancel remaining steps and exit the monitor |
 | `touch /tmp/extend.now` | Reset the wait to 60 minutes |
 
-These controls apply only during the wait. Old control files are cleared at
-startup. If no control file is created, final power-off proceeds automatically
+These controls apply only during the wait. Create them as the monitor user
+(`sks`) or root, using regular files; other owners, symlinks, and special files
+are ignored with a warning. Old accepted control files are cleared at startup. If no control file is created, final power-off proceeds automatically
 after 60 minutes. Logs are saved to `logs/monitor.log`.
 
 ## First-time setup

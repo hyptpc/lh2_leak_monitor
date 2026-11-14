@@ -5,6 +5,7 @@ import logging
 import os
 from pathlib import Path
 import signal
+import stat
 import subprocess
 import sys
 import threading
@@ -32,12 +33,23 @@ class FileTriggers:
     def __init__(self, paths, log):
         self.paths = paths
         self.log = log
+        self._warned = set()
 
     def consume(self, name):
+        path = self.paths[name]
         try:
-            self.paths[name].unlink()
+            info = path.lstat()  # Inspect the request itself, never follow symlinks.
+            if not stat.S_ISREG(info.st_mode) or info.st_uid not in {os.geteuid(), 0}:
+                if name not in self._warned:
+                    self.log('WARNING', f'Ignored untrusted control file: {path}; '
+                             'expected a regular file owned by the monitor user or root')
+                    self._warned.add(name)
+                return False
+            path.unlink()
+            self._warned.discard(name)
             return True
         except FileNotFoundError:
+            self._warned.discard(name)
             return False
         except OSError as error:
             # Fail visibly instead of repeatedly extending the timer forever.

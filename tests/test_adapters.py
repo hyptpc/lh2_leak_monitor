@@ -66,6 +66,53 @@ class AdapterTests(unittest.TestCase):
             triggers.clear()
             self.assertFalse(any(path.exists() for path in paths.values()))
 
+    def test_untrusted_trigger_is_ignored_without_deleting_or_repeated_warnings(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'skip'
+            path.touch()
+            log = MagicMock()
+            triggers = FileTriggers({'skip': path}, log)
+            info = types.SimpleNamespace(st_mode=path.stat().st_mode, st_uid=12345)
+            with patch('lh2_monitor.adapters.os.geteuid', return_value=1000), \
+                    patch.object(Path, 'lstat', return_value=info):
+                self.assertFalse(triggers.consume('skip'))
+                triggers.clear()
+            self.assertTrue(path.exists())
+            log.assert_called_once()
+            path.unlink()
+            self.assertFalse(triggers.consume('skip'))
+            path.touch()
+            self.assertTrue(triggers.consume('skip'))
+
+    def test_root_owned_trigger_is_accepted_for_sudo_touch_compatibility(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'cancel'
+            path.touch()
+            info = types.SimpleNamespace(st_mode=path.stat().st_mode, st_uid=0)
+            triggers = FileTriggers({'cancel': path}, self.log)
+            with patch('lh2_monitor.adapters.os.geteuid', return_value=1000), \
+                    patch.object(Path, 'lstat', return_value=info):
+                self.assertTrue(triggers.consume('cancel'))
+            self.assertFalse(path.exists())
+
+    def test_symlink_directory_and_fifo_are_not_control_requests(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / 'target'
+            target.touch()
+            path = Path(directory) / 'extend'
+            triggers = FileTriggers({'extend': path}, self.log)
+            path.symlink_to(target)
+            self.assertFalse(triggers.consume('extend'))
+            self.assertTrue(path.is_symlink())
+            self.assertTrue(target.exists())
+            path.unlink()
+            path.mkdir()
+            self.assertFalse(triggers.consume('extend'))
+            path.rmdir()
+            os.mkfifo(path)
+            self.assertFalse(triggers.consume('extend'))
+            self.assertTrue(path.exists())
+
     def test_duplicate_monitor_cannot_acquire_lock(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'monitor.lock'
