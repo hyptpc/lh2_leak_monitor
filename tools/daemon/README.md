@@ -1,4 +1,4 @@
-> For this LH2 installation, use the top-level scripts documented in
+> For this LH2 installation, use the LH2-specific scripts under `lh2/`, documented in
 > [the project README](../../README.md#service-control). These legacy tools
 > also manage other monitors and retain their boot-enable/backup behavior.
 

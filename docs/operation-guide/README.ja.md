@@ -12,25 +12,26 @@
 事前チェックは手動で行う独立した手順であり、monitor.py が自動実行するものではありません。
 
 実行場所はmonitor2の /home/sks/monitor_tools/lh2_leak_monitor に固定しています。
-実機起動にはここの start.sh を使います。Pythonは /home/sks/.venv/bin/python、
+実機起動にはtools/daemon/lh2/start.sh を使います。Pythonは /home/sks/.venv/bin/python、
 作業ディレクトリも上記パスに固定され、activateは不要です。
 systemdは準備済みのローカル用Type=exec定義を使い、旧oneshot/tmux定義では起動しないでください。
 
 ## 操作する入口
 
-プロジェクト直下のシェルスクリプトから操作します。venvのactivateは不要です。
+確認・計画表示・シミュレーションはプロジェクト直下、サービス操作は
+`tools/daemon/lh2/` のシェルスクリプトから行います。venvのactivateは不要です。
 
 | コマンド | 動作 |
 | --- | --- |
 | `./preflight.sh` | 全機器との読み取り専用確認。Discord送信はスキップ |
 | `./plan.sh` | 設定された停止順序の表示のみ |
 | `./simulate.sh` | 機器に接続しない仮想動作確認 |
-| `./install-service.sh` | サービス定義の登録・再読み込みのみ。起動や自動起動の有効化はしない |
-| `./start.sh` | systemdで実機監視を開始 |
-| `./stop.sh` | 監視を停止。既に停止した機器をONには戻さない |
-| `./status.sh` | サービス状態・直近のログを確認 |
+| `./tools/daemon/lh2/install-service.sh` | サービス定義の登録・再読み込みのみ。起動や自動起動の有効化はしない |
+| `./tools/daemon/lh2/start.sh` | systemdで実機監視を開始 |
+| `./tools/daemon/lh2/stop.sh` | 監視を停止。既に停止した機器をONには戻さない |
+| `./tools/daemon/lh2/status.sh` | サービス状態・直近のログを確認 |
 
-今回の配置変更後は、最初に `./install-service.sh` を実行してください。
+今回の配置変更後は、最初に `./tools/daemon/lh2/install-service.sh` を実行してください。
 Python本体は `app/`、設定は `config/config.toml`、`.env` はプロジェクト直下です。
 
 ## 1. 起動前：まず事前チェック
