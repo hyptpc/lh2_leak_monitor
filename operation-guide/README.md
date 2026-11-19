@@ -11,6 +11,12 @@ addresses, and timing below.
 starts monitoring, sends shutdown commands, or sends Discord notifications.**
 Preflight is an operator step; it is not automatically run by monitor.py.
 
+This installation runs only on monitor2 at
+/home/sks/monitor_tools/lh2_leak_monitor. Use its start.sh for live startup;
+it always uses /home/sks/.venv/bin/python and the fixed project directory.
+No activate step is required. The installed systemd unit must use the prepared
+local Type=exec definition, not the old oneshot/tmux launcher.
+
 ## 1. Before starting: preflight
 
 On monitor2, from the shared project:

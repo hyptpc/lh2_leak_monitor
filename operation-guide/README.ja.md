@@ -11,6 +11,11 @@
 監視の起動・停止命令・Discord通知を行いません。**
 事前チェックは手動で行う独立した手順であり、monitor.py が自動実行するものではありません。
 
+実行場所はmonitor2の /home/sks/monitor_tools/lh2_leak_monitor に固定しています。
+実機起動にはここの start.sh を使います。Pythonは /home/sks/.venv/bin/python、
+作業ディレクトリも上記パスに固定され、activateは不要です。
+systemdは準備済みのローカル用Type=exec定義を使い、旧oneshot/tmux定義では起動しないでください。
+
 ## 1. 起動前：まず事前チェック
 
 monitor2 の共有フォルダ側で実行します。

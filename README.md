@@ -3,10 +3,12 @@
 Watches `Alert_H2leak` for a **0 → 1** transition and runs the configured
 shutdown sequence.
 
-Run the monitor from the local monitor2 checkout at
-/home/sks/monitor_tools/lh2_leak_monitor. Keep code, config, credentials, logs
-and the process lock on the local filesystem. The shared checkout is for source
-distribution; the configured alert input still depends on the shared mount.
+This installation is dedicated to monitor2 at the fixed local path
+/home/sks/monitor_tools/lh2_leak_monitor. start.sh selects /home/sks/.venv/bin/python
+and changes to this directory, so activation and the caller's working directory
+do not affect normal startup. Code, config, credentials, logs and the process
+lock belong here. The shared checkout is not an execution location; the configured
+alert input still depends on the shared mount.
 
 ## Start
 
@@ -14,12 +16,13 @@ Use the equipment host's Python environment:
 
 ```bash
 cd /home/sks/monitor_tools/lh2_leak_monitor
-python monitor.py
+./start.sh
 ```
 
 This is **normal live operation**: equipment commands and configured Discord
-notifications are enabled. If the alert is already 1 at startup, choose `q` to
-exit or Enter to wait for a new 0 → 1. Without a terminal, it waits.
+notifications are enabled. This launcher waits for a new 0 → 1 if the alert is
+already 1 at startup; it does not immediately send shutdown commands. The raw
+monitor.py CLI also supports an interactive exit/wait choice.
 
 Once triggered, recovery to 0 does not cancel the sequence. The program exits
 after completion or operator cancellation; restart it to monitor again.
@@ -39,7 +42,7 @@ Edit [config.toml](config.toml). Equipment addresses and order are kept here.
 To display the full order and addresses **without operating equipment**:
 
 ```bash
-python monitor.py --show-plan
+./start.sh --show-plan
 ```
 
 Default order: **HV → mass-flow pair → Kikusui .45 → CAEN Chamber →
@@ -102,10 +105,10 @@ before equipment commands. **Never commit `.env` or actual credentials.**
 notifications; it does not contact equipment or Discord or read live input files.
 
 ```bash
-python monitor.py --simulate
-python monitor.py --simulate --scenario debug/scenarios/failure.json
-python monitor.py --simulate --scenario debug/scenarios/cancel.json
-python -m tests
+./start.sh --simulate
+./start.sh --simulate --scenario debug/scenarios/failure.json
+./start.sh --simulate --scenario debug/scenarios/cancel.json
+/home/sks/.venv/bin/python -m tests
 ```
 
 The test runner blocks real networking, subprocess creation, and CAEN-library
