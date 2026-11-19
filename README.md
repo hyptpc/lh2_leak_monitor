@@ -4,7 +4,7 @@ Watches `Alert_H2leak` for a **0 → 1** transition and runs the configured
 shutdown sequence.
 
 This installation is dedicated to monitor2 at the fixed local path
-/home/sks/monitor_tools/lh2_leak_monitor. tools/daemon/lh2/start.sh selects /home/sks/.venv/bin/python
+/home/sks/monitor_tools/lh2_leak_monitor. daemon/start.sh selects /home/sks/.venv/bin/python
 through the installed systemd service, so activation and the caller's working directory
 do not affect normal startup. Code, config, credentials, logs and the process
 lock belong here. The shared checkout is not an execution location; the configured
@@ -16,7 +16,7 @@ Use the equipment host's Python environment:
 
 ```bash
 cd /home/sks/monitor_tools/lh2_leak_monitor
-./tools/daemon/lh2/start.sh
+./daemon/start.sh
 ```
 
 This is **normal live operation**: equipment commands and configured Discord
@@ -105,9 +105,9 @@ before equipment commands. **Never commit `.env` or actual credentials.**
 notifications; it does not contact equipment or Discord or read live input files.
 
 ```bash
-./simulate.sh
-./simulate.sh --scenario debug/scenarios/failure.json
-./simulate.sh --scenario debug/scenarios/cancel.json
+./debug/simulate.sh
+./debug/simulate.sh --scenario debug/scenarios/failure.json
+./debug/simulate.sh --scenario debug/scenarios/cancel.json
 /home/sks/.venv/bin/python -m tests
 ```
 
@@ -116,8 +116,8 @@ loading. These tests do not verify real equipment behavior.
 
 ## Service control
 
-Top-level scripts provide checks, plan display and simulation. Service controls
-are under tools/daemon/lh2/. All scripts use this fixed local
+Top-level scripts provide preflight checks and plan display. Simulation is under debug/. Service controls
+are under daemon/. All scripts use this fixed local
 installation; activating a virtual environment is unnecessary.
 
 | Script | Purpose |
@@ -125,13 +125,13 @@ installation; activating a virtual environment is unnecessary.
 | `./preflight.sh` | Read-only checks of imports, configuration and all configured devices; skips Discord |
 | `./preflight.sh --local` | Local checks only, without device communication |
 | `./plan.sh` | Print the configured shutdown plan without I/O |
-| `./simulate.sh` | Entirely virtual simulation, without equipment or Discord |
-| `./tools/daemon/lh2/install-service.sh` | Verify and install the unit, then reload systemd; does not start or enable |
-| `./tools/daemon/lh2/start.sh` | Start live monitoring through systemd; does not enable boot startup |
-| `./tools/daemon/lh2/stop.sh` | Stop monitoring; does not restore equipment power or disable boot startup |
-| `./tools/daemon/lh2/status.sh` | Show service state and recent journal messages |
+| `./debug/simulate.sh` | Entirely virtual simulation, without equipment or Discord |
+| `./daemon/install-service.sh` | Verify and install the unit, then reload systemd; does not start or enable |
+| `./daemon/start.sh` | Start live monitoring through systemd; does not enable boot startup |
+| `./daemon/stop.sh` | Stop monitoring; does not restore equipment power or disable boot startup |
+| `./daemon/status.sh` | Show service state and recent journal messages |
 
-After this directory reorganization, run `./tools/daemon/lh2/install-service.sh` again before
+After this directory reorganization, run `./daemon/install-service.sh` again before
 starting. sudo will ask for your password. No backup copies are created.
 `start.sh` refuses an outdated installed definition. The service remains
 `Restart=no`: completion or cancellation ends this monitoring run.
@@ -141,23 +141,20 @@ To inspect additional logs: `journalctl -u lh2_monitor.service -n 100 --no-pager
 ## Directory layout
 
 ```text
-README.md, *.sh       Guide, preflight, plan display and simulation
+README.md, *.sh       Guide, preflight checks and plan display
 .env                 Local credentials (ignored by Git; mode 600)
 app/                 Python entry points, package and compatibility tools
 config/config.toml   Equipment addresses, sequence and timing
 docs/operation-guide/ English and Japanese flowcharts
-tools/daemon/lh2/    LH2 service start, stop, status and installation
-tools/daemon/        Service template and legacy multi-monitor administration
+daemon/    LH2 service start, stop, status and installation
 tools/port_on.sh     Legacy manual USB helper (not used by monitoring)
-tests/, debug/       Offline tests and simulation scenarios
+tests/, debug/       Offline tests, simulation launcher and scenarios
 logs/, runtime/      Generated logs and lock files (ignored by Git)
 ```
 
-Use tools/daemon/lh2/ for this installation's service controls. The older generic
-administration tools directly under tools/daemon retain their own behavior
-(including backups and boot-enable operations); they are not needed for this workflow.
+Use this tool's daemon/ directory for service controls and its service template.
 The only LH2 service template is
-[tools/daemon/units/lh2_monitor.service](tools/daemon/units/lh2_monitor.service).
+[daemon/units/lh2_monitor.service](daemon/units/lh2_monitor.service).
 The Python CLI is [app/monitor.py](app/monitor.py); its normal mode is live.
 Do not run compatibility tools to test readiness: some directly control equipment.
 
@@ -166,3 +163,7 @@ Visual guides: [English](docs/operation-guide/README.md) /
 Unreadable or invalid alert input warns and monitoring continues; runtime file age
 is not checked. Credentials, logs, runtime files and virtual environments are
 excluded from Git. The alert input still depends on the shared mount.
+
+Preflight uses green PASS, yellow WARN, red FAIL and cyan SKIP on terminals.
+Redirected output and JSON remain plain; use `--color always` / `--color never`
+to override text output, or set `NO_COLOR` to disable automatic color.

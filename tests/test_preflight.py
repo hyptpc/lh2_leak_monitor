@@ -206,6 +206,33 @@ class PreflightTests(unittest.TestCase):
             self.assertEqual(p.main(["--local"]), 0)
         self.assertFalse(collect.call_args.kwargs["devices"])
 
+    def test_terminal_colors_and_plain_redirect(self):
+        checks = [p.Check(status, status, "mocked") for status in p.STATUS_COLORS]
+        for tty in (True, False):
+            with self.subTest(tty=tty), redirect_stdout(StringIO()) as output, \
+                    patch.object(output, "isatty", return_value=tty), \
+                    patch.dict(os.environ, {"TERM": "xterm"}, clear=True):
+                p.print_report(checks, devices=True)
+                self.assertEqual("\033[" in output.getvalue(), tty)
+                for status in p.STATUS_COLORS:
+                    self.assertIn(status, output.getvalue())
+
+    def test_color_override_and_no_color_environment(self):
+        for mode, no_color, expected in [("auto", True, False), ("never", False, False),
+                                          ("always", False, True)]:
+            with self.subTest(mode=mode), redirect_stdout(StringIO()) as output, \
+                    patch.object(output, "isatty", return_value=True), \
+                    patch.dict(os.environ, {"NO_COLOR": ""} if no_color else {}, clear=True):
+                p.print_report([p.Check("example", "PASS", "mocked")], devices=False, color=mode)
+                self.assertEqual("\033[" in output.getvalue(), expected)
+
+    def test_json_has_no_color_even_when_forced(self):
+        with patch.object(p, "collect_checks", return_value=[p.Check("example", "PASS", "mocked")]), \
+                redirect_stdout(StringIO()) as output:
+            self.assertEqual(p.main(["--json", "--color", "always"]), 0)
+        self.assertNotIn("\033", output.getvalue())
+        self.assertEqual(json.loads(output.getvalue())["checks"][0]["status"], "PASS")
+
     def test_invalid_timeout_is_rejected(self):
         for value in ("0", "-1", "nan", "inf"):
             with self.subTest(value=value), redirect_stderr(StringIO()):

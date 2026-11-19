@@ -12,26 +12,26 @@
 事前チェックは手動で行う独立した手順であり、monitor.py が自動実行するものではありません。
 
 実行場所はmonitor2の /home/sks/monitor_tools/lh2_leak_monitor に固定しています。
-実機起動にはtools/daemon/lh2/start.sh を使います。Pythonは /home/sks/.venv/bin/python、
+実機起動にはdaemon/start.sh を使います。Pythonは /home/sks/.venv/bin/python、
 作業ディレクトリも上記パスに固定され、activateは不要です。
 systemdは準備済みのローカル用Type=exec定義を使い、旧oneshot/tmux定義では起動しないでください。
 
 ## 操作する入口
 
-確認・計画表示・シミュレーションはプロジェクト直下、サービス操作は
-`tools/daemon/lh2/` のシェルスクリプトから行います。venvのactivateは不要です。
+確認・計画表示はプロジェクト直下、シミュレーションは `debug/`、サービス操作は
+`daemon/` のシェルスクリプトから行います。venvのactivateは不要です。
 
 | コマンド | 動作 |
 | --- | --- |
 | `./preflight.sh` | 全機器との読み取り専用確認。Discord送信はスキップ |
 | `./plan.sh` | 設定された停止順序の表示のみ |
-| `./simulate.sh` | 機器に接続しない仮想動作確認 |
-| `./tools/daemon/lh2/install-service.sh` | サービス定義の登録・再読み込みのみ。起動や自動起動の有効化はしない |
-| `./tools/daemon/lh2/start.sh` | systemdで実機監視を開始 |
-| `./tools/daemon/lh2/stop.sh` | 監視を停止。既に停止した機器をONには戻さない |
-| `./tools/daemon/lh2/status.sh` | サービス状態・直近のログを確認 |
+| `./debug/simulate.sh` | 機器に接続しない仮想動作確認 |
+| `./daemon/install-service.sh` | サービス定義の登録・再読み込みのみ。起動や自動起動の有効化はしない |
+| `./daemon/start.sh` | systemdで実機監視を開始 |
+| `./daemon/stop.sh` | 監視を停止。既に停止した機器をONには戻さない |
+| `./daemon/status.sh` | サービス状態・直近のログを確認 |
 
-今回の配置変更後は、最初に `./tools/daemon/lh2/install-service.sh` を実行してください。
+今回の配置変更後は、最初に `./daemon/install-service.sh` を実行してください。
 Python本体は `app/`、設定は `config/config.toml`、`.env` はプロジェクト直下です。
 
 ## 1. 起動前：まず事前チェック
@@ -306,3 +306,7 @@ flowchart TD
 機器なしで挙動を試す場合は、[プロジェクトREADME](../../README.md#offline-testing)
 にある明示的な --simulate を使用してください。
 標準の機器事前チェックと違い、シミュレーションでは機器に一切接続しません。
+
+事前確認は端末上でPASSを緑、WARNを黄、FAILを赤、SKIPを水色で表示します。
+ファイル保存・JSONには通常色コードを含めません。`--color always` /
+`--color never` で指定でき、`NO_COLOR` の設定でも自動着色を無効にできます。

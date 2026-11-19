@@ -274,6 +274,32 @@ def positive_timeout(value):
     return number
 
 
+
+STATUS_COLORS = {"PASS": "32", "WARN": "33", "FAIL": "31", "SKIP": "36"}
+
+
+def print_report(checks, *, devices, color="auto"):
+    enabled = color == "always" or (color == "auto" and sys.stdout.isatty()
+                                       and "NO_COLOR" not in os.environ
+                                       and os.environ.get("TERM") != "dumb")
+
+    def label(status, text):
+        return f"\033[{STATUS_COLORS[status]}m{text}\033[0m" if enabled else text
+
+    print("LH2 PREFLIGHT: " + ("READ-ONLY DEVICES" if devices else "LOCAL ONLY"))
+    print("No shutdown commands, trigger-file changes, monitor startup, or Discord messages.")
+    print()
+    for check in checks:
+        print(label(check.status, f"[{check.status:4}]") + f" {check.name}")
+        print(f"       {check.detail}")
+        print()
+    counts = {status: sum(check.status == status for check in checks)
+              for status in STATUS_COLORS}
+    print("Summary: " + " | ".join(label(status, f"{n} {status}")
+                                    for status, n in counts.items()))
+    print("PASS is a point-in-time read-only check, not proof that a future shutdown will succeed.")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=ROOT.parent / "config/config.toml")
@@ -284,6 +310,8 @@ def main(argv=None):
                        help="Only local checks; do not contact equipment")
     parser.set_defaults(devices=True)
     parser.add_argument("--timeout", type=positive_timeout, help="Per-probe I/O timeout in seconds")
+    parser.add_argument("--color", choices=("auto", "always", "never"), default="auto",
+                        help="Terminal colors (default: auto; JSON always has no colors)")
     parser.add_argument("--json", action="store_true", help="Print a JSON report")
     parser.add_argument("--probe", choices=tuple(PROBES), help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
@@ -309,12 +337,5 @@ def main(argv=None):
                           "checks": [asdict(check) for check in checks],
                           "exit_code": code}, ensure_ascii=False, indent=2))
     else:
-        print("LH2 PREFLIGHT: " + ("READ-ONLY DEVICES" if args.devices else "LOCAL ONLY"))
-        print("No shutdown commands, trigger-file changes, monitor startup, or Discord messages.")
-        for check in checks:
-            print(f"[{check.status:4}] {check.name}: {check.detail}")
-        counts = {status: sum(check.status == status for check in checks)
-                  for status in ("PASS", "WARN", "FAIL", "SKIP")}
-        print("Summary: " + ", ".join(f"{n} {key}" for key, n in counts.items()))
-        print("PASS is a point-in-time read-only check, not proof that a future shutdown will succeed.")
+        print_report(checks, devices=args.devices, color=args.color)
     return code
