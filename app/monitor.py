@@ -85,7 +85,7 @@ def main(argv=None):
     modes.add_argument('--simulate', action='store_true', help='Use entirely virtual equipment and time')
     modes.add_argument('--live', action='store_true', help='Explicit live mode (also the default)')
     modes.add_argument('--show-plan', action='store_true', help='Print order and addresses, then exit')
-    parser.add_argument('--config', type=Path, default=ROOT / 'config.toml')
+    parser.add_argument('--config', type=Path, default=ROOT.parent / 'config/config.toml')
     parser.add_argument('--scenario', type=Path, help='Simulation-only JSON scenario')
     parser.add_argument('--startup-alert', choices=['ask', 'wait', 'exit'], default='ask',
                         help='Already-1 policy; ask defaults to wait without a TTY')

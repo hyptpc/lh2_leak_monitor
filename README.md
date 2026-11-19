@@ -5,7 +5,7 @@ shutdown sequence.
 
 This installation is dedicated to monitor2 at the fixed local path
 /home/sks/monitor_tools/lh2_leak_monitor. start.sh selects /home/sks/.venv/bin/python
-and changes to this directory, so activation and the caller's working directory
+through the installed systemd service, so activation and the caller's working directory
 do not affect normal startup. Code, config, credentials, logs and the process
 lock belong here. The shared checkout is not an execution location; the configured
 alert input still depends on the shared mount.
@@ -22,14 +22,14 @@ cd /home/sks/monitor_tools/lh2_leak_monitor
 This is **normal live operation**: equipment commands and configured Discord
 notifications are enabled. This launcher waits for a new 0 → 1 if the alert is
 already 1 at startup; it does not immediately send shutdown commands. The raw
-monitor.py CLI also supports an interactive exit/wait choice.
+app/monitor.py CLI also supports an interactive exit/wait choice.
 
 Once triggered, recovery to 0 does not cancel the sequence. The program exits
 after completion or operator cancellation; restart it to monitor again.
 
 ## Configuration
 
-Edit [config.toml](config.toml). Equipment addresses and order are kept here.
+Edit [config.toml](config/config.toml). Equipment addresses and order are kept here.
 
 | Section | Contents |
 | --- | --- |
@@ -42,7 +42,7 @@ Edit [config.toml](config.toml). Equipment addresses and order are kept here.
 To display the full order and addresses **without operating equipment**:
 
 ```bash
-./start.sh --show-plan
+./plan.sh
 ```
 
 Default order: **HV → mass-flow pair → Kikusui .45 → CAEN Chamber →
@@ -105,32 +105,62 @@ before equipment commands. **Never commit `.env` or actual credentials.**
 notifications; it does not contact equipment or Discord or read live input files.
 
 ```bash
-./start.sh --simulate
-./start.sh --simulate --scenario debug/scenarios/failure.json
-./start.sh --simulate --scenario debug/scenarios/cancel.json
+./simulate.sh
+./simulate.sh --scenario debug/scenarios/failure.json
+./simulate.sh --scenario debug/scenarios/cancel.json
 /home/sks/.venv/bin/python -m tests
 ```
 
 The test runner blocks real networking, subprocess creation, and CAEN-library
 loading. These tests do not verify real equipment behavior.
 
-`start.sh` is a foreground **live** launcher; [lh2_monitor.service](lh2_monitor.service)
-is an optional systemd unit, not installed automatically. Unreadable or invalid
-input produces a warning and monitoring continues; file age is not checked.
-Credentials, logs, runtime files, and virtual environments are excluded from Git.
-
 ## Service control
 
-Use [daemon/](daemon/README.md): `start.sh` starts the service and enables automatic
-startup, `stop.sh` stops it and disables automatic startup, and `monitor.sh` shows
-its state. sudo asks for your password.
+The top-level scripts are the operator entry points. They use this fixed local
+installation; activating a virtual environment is unnecessary.
 
-```bash
-./daemon/monitor.sh
-./daemon/stop.sh
+| Script | Purpose |
+| --- | --- |
+| `./preflight.sh` | Read-only checks of imports, configuration and all configured devices; skips Discord |
+| `./preflight.sh --local` | Local checks only, without device communication |
+| `./plan.sh` | Print the configured shutdown plan without I/O |
+| `./simulate.sh` | Entirely virtual simulation, without equipment or Discord |
+| `./install-service.sh` | Verify and install the unit, then reload systemd; does not start or enable |
+| `./start.sh` | Start live monitoring through systemd; does not enable boot startup |
+| `./stop.sh` | Stop monitoring; does not restore equipment power or disable boot startup |
+| `./status.sh` | Show service state and recent journal messages |
+
+After this directory reorganization, run `./install-service.sh` again before
+starting. sudo will ask for your password. No backup copies are created.
+`start.sh` refuses an outdated installed definition. The service remains
+`Restart=no`: completion or cancellation ends this monitoring run.
+To inspect additional logs: `journalctl -u lh2_monitor.service -n 100 --no-pager`.
+`status.sh` returns systemctl's nonzero exit status when inactive.
+
+## Directory layout
+
+```text
+README.md, *.sh       Operator entry points and this guide
+.env                 Local credentials (ignored by Git; mode 600)
+app/                 Python entry points, package and compatibility tools
+config/config.toml   Equipment addresses, sequence and timing
+docs/operation-guide/ English and Japanese flowcharts
+tools/daemon/        Service template and legacy multi-monitor administration
+tools/port_on.sh     Legacy manual USB helper (not used by monitoring)
+tests/, debug/       Offline tests and simulation scenarios
+logs/, runtime/      Generated logs and lock files (ignored by Git)
 ```
 
-Before first use of the updated units, stop the target and install its definition
-with `sudo /usr/bin/python3 daemon/configure.py TARGET`. Installation backs up old
-units and reloads systemd without starting anything. See the daemon README for
-all targets and the bounded automatic-restart policy.
+Use the top-level scripts for this installation. The generic administration tools
+under tools/daemon retain their own behavior (including backups and boot-enable
+operations); they are not needed for the LH2 workflow above.
+The only LH2 service template is
+[tools/daemon/units/lh2_monitor.service](tools/daemon/units/lh2_monitor.service).
+The Python CLI is [app/monitor.py](app/monitor.py); its normal mode is live.
+Do not run compatibility tools to test readiness: some directly control equipment.
+
+Visual guides: [English](docs/operation-guide/README.md) /
+[日本語](docs/operation-guide/README.ja.md).
+Unreadable or invalid alert input warns and monitoring continues; runtime file age
+is not checked. Credentials, logs, runtime files and virtual environments are
+excluded from Git. The alert input still depends on the shared mount.

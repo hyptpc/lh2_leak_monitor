@@ -276,7 +276,7 @@ def positive_timeout(value):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=ROOT / "config.toml")
+    parser.add_argument("--config", type=Path, default=ROOT.parent / "config/config.toml")
     scope = parser.add_mutually_exclusive_group()
     scope.add_argument("--devices", dest="devices", action="store_true",
                        help="Query configured devices read-only (default)")

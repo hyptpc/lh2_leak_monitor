@@ -32,6 +32,7 @@ def guard(event, args):
                     raise RuntimeError(f'OFFLINE TEST GUARD: production path {path}')
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
 sys.addaudithook(guard)
 suite = unittest.defaultTestLoader.discover(str(Path(__file__).parent), pattern='test_*.py')
 result = unittest.TextTestRunner(verbosity=2).run(suite)

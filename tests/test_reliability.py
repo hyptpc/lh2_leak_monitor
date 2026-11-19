@@ -85,7 +85,7 @@ class TriggerReliabilityTests(unittest.TestCase):
             self.assertFalse(triggers.consume("skip"))
 
     def run_sequence_with_request(self, name, *, inspect_error=False):
-        config = replace(load_config(ROOT / "config.toml"), wait_seconds=3)
+        config = replace(load_config(ROOT / "config/config.toml"), wait_seconds=3)
         clock = VirtualClock()
         executor = VirtualExecutor(clock)
         notifier = VirtualNotifier(self.log)
@@ -195,7 +195,7 @@ class CleanupReliabilityTests(unittest.TestCase):
         self.assertEqual(process.communicate.call_args_list[-1].kwargs["timeout"], 2.0)
 
     def test_other_equipment_is_attempted_after_stuck_worker(self):
-        config = load_config(ROOT / "config.toml")
+        config = load_config(ROOT / "config/config.toml")
         config = replace(config, retry=replace(config.retry, max_attempts=1), wait_seconds=1)
         clock = VirtualClock()
         virtual = VirtualExecutor(clock)

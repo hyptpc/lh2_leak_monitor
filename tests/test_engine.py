@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 class EngineTests(unittest.TestCase):
     def setUp(self):
-        self.config = load_config(ROOT / 'config.toml')
+        self.config = load_config(ROOT / 'config/config.toml')
         self.clock = VirtualClock()
         self.events = []
         self.log = lambda level, message: self.events.append((level, message))

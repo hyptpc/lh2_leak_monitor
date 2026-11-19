@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 class PreflightTests(unittest.TestCase):
     def setUp(self):
-        self.config = load_config(ROOT / "config.toml")
+        self.config = load_config(ROOT / "config/config.toml")
 
     def test_groups_all_ten_targets_without_shutdown_execution(self):
         checks = p.equipment_checks(self.config)

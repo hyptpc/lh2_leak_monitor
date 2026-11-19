@@ -20,6 +20,7 @@ if (( $# > 1 )); then usage >&2; exit 2; fi
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 TOOL_DIR="${SCRIPT_DIR%/*}"
+if [[ "${TOOL_DIR##*/}" == tools ]]; then TOOL_DIR="${TOOL_DIR%/*}"; fi
 target="${1:-${TOOL_DIR##*/}}"
 case "$target" in
     lh2|lh2_leak_monitor) unit='lh2_monitor.service' ;;

@@ -1,10 +1,10 @@
 # LH2モニター：動作を上から追うガイド
 
-[English](README.md) · [プロジェクトREADME](../README.md)
+[English](README.md) · [プロジェクトREADME](../../README.md)
 
 フローチャートを上から下へ読んでください。
-現行の [config.toml](../config.toml)、[起動処理](../monitor.py)、
-[制御ロジック](../lh2_monitor/engine.py) に沿った説明です。
+現行の [config.toml](../../config/config.toml)、[起動処理](../../app/monitor.py)、
+[制御ロジック](../../app/lh2_monitor/engine.py) に沿った説明です。
 設定を変えると、以下の順序・接続先・待ち時間も変わります。
 
 **モニターの通常起動は実機動作です。別プログラムの事前チェックは、
@@ -16,6 +16,23 @@
 作業ディレクトリも上記パスに固定され、activateは不要です。
 systemdは準備済みのローカル用Type=exec定義を使い、旧oneshot/tmux定義では起動しないでください。
 
+## 操作する入口
+
+プロジェクト直下のシェルスクリプトから操作します。venvのactivateは不要です。
+
+| コマンド | 動作 |
+| --- | --- |
+| `./preflight.sh` | 全機器との読み取り専用確認。Discord送信はスキップ |
+| `./plan.sh` | 設定された停止順序の表示のみ |
+| `./simulate.sh` | 機器に接続しない仮想動作確認 |
+| `./install-service.sh` | サービス定義の登録・再読み込みのみ。起動や自動起動の有効化はしない |
+| `./start.sh` | systemdで実機監視を開始 |
+| `./stop.sh` | 監視を停止。既に停止した機器をONには戻さない |
+| `./status.sh` | サービス状態・直近のログを確認 |
+
+今回の配置変更後は、最初に `./install-service.sh` を実行してください。
+Python本体は `app/`、設定は `config/config.toml`、`.env` はプロジェクト直下です。
+
 ## 1. 起動前：まず事前チェック
 
 monitor2 の共有フォルダ側で実行します。
@@ -25,13 +42,13 @@ cd /home/sks/monitor_tools/lh2_leak_monitor
 mkdir -p logs
 
 # 標準：ローカル確認に加え、設定中の全機器との読み取り専用の通信確認も行います。
-/home/sks/.venv/bin/python preflight.py
+./preflight.sh
 
 # 必要な場合だけ：import・設定・認証情報・入力の確認のみ。機器には接続しません。
-/home/sks/.venv/bin/python preflight.py --local
+./preflight.sh --local
 
 # 必要ならJSONで保存。logs/ はGit管理対象外です。
-/home/sks/.venv/bin/python preflight.py --json > logs/preflight.json
+./preflight.sh --json > logs/preflight.json
 ~~~
 
 ~~~mermaid
@@ -115,7 +132,7 @@ flowchart TD
 その入力だけでは停止を開始せず、直前の有効値を保持します。
 有効な0が続いている間も停止は繰り返しません。
 
-.env は monitor.py と同じディレクトリに置きます。
+.env はプロジェクト直下（app/ の外側）に置きます。
 python-dotenv があれば実機モニターの起動時に読み込みます。
 編集内容の反映にはプロセスの起動し直しが必要です。
 同名の環境変数が既にあれば、そちらが優先されます。
@@ -204,7 +221,7 @@ Discordはバックグラウンドで送信を試みます。
 命令の成功・応答の受信は、**全てのHV・バルブ・電源の物理的な停止確認とは異なります。**
 処理完了・キャンセルでそのPythonプロセスは終了します。
 その後の自動再起動の有無は、実際に導入したサービス定義に依存します。
-リポジトリ内の雛形だけで判断せず、[サービス管理](../daemon/README.md)を参照してください。
+リポジトリ内の雛形だけで判断せず、[サービス管理](../../README.md#service-control)を参照してください。
 
 ## 4. 60分待機中の操作
 
@@ -276,15 +293,15 @@ flowchart TD
 
 | 挙動 | 実装 |
 | --- | --- |
-| 接続先・時間・操作順 | [config.toml](../config.toml) |
-| 実機起動・環境変数・ロック・終了 | [monitor.py](../monitor.py) |
-| 0→1の検知・再試行・待機・最終結果 | [engine.py](../lh2_monitor/engine.py) |
-| 入力・操作ファイル・通知送信 | [adapters.py](../lh2_monitor/adapters.py) |
-| 実際の機器プロトコル | [hardware.py](../lh2_monitor/hardware.py) |
-| 読み取り専用の事前チェック | [preflight.py](../lh2_monitor/preflight.py) |
-| ワーカーの後始末の時間制限 | [processes.py](../lh2_monitor/processes.py) |
-| 完全仮想の動作確認 | [simulation.py](../lh2_monitor/simulation.py) |
+| 接続先・時間・操作順 | [config.toml](../../config/config.toml) |
+| 実機起動・環境変数・ロック・終了 | [monitor.py](../../app/monitor.py) |
+| 0→1の検知・再試行・待機・最終結果 | [engine.py](../../app/lh2_monitor/engine.py) |
+| 入力・操作ファイル・通知送信 | [adapters.py](../../app/lh2_monitor/adapters.py) |
+| 実際の機器プロトコル | [hardware.py](../../app/lh2_monitor/hardware.py) |
+| 読み取り専用の事前チェック | [preflight.py](../../app/lh2_monitor/preflight.py) |
+| ワーカーの後始末の時間制限 | [processes.py](../../app/lh2_monitor/processes.py) |
+| 完全仮想の動作確認 | [simulation.py](../../app/lh2_monitor/simulation.py) |
 
-機器なしで挙動を試す場合は、[プロジェクトREADME](../README.md#offline-testing)
+機器なしで挙動を試す場合は、[プロジェクトREADME](../../README.md#offline-testing)
 にある明示的な --simulate を使用してください。
 標準の機器事前チェックと違い、シミュレーションでは機器に一切接続しません。

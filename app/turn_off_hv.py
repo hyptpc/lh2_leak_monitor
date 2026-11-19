@@ -27,7 +27,7 @@ def main(argv=None):
 
     from lh2_monitor.adapters import ProcessExecutor
 
-    config = load_config(Path(__file__).resolve().parent / 'config.toml')
+    config = load_config(Path(__file__).resolve().parent.parent / 'config/config.toml')
 
     def log(level, message):
         print(f'{level}: {message}', flush=True)

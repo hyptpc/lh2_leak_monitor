@@ -1,3 +1,7 @@
+> For this LH2 installation, use the top-level scripts documented in
+> [the project README](../../README.md#service-control). These legacy tools
+> also manage other monitors and retain their boot-enable/backup behavior.
+
 # Monitor service controls
 
 | Script | Effect |
@@ -10,12 +14,12 @@ Run in your terminal; sudo asks for your password. **Start launches real
 monitoring.** From an individual tool directory, no target is needed:
 
 ```bash
-./daemon/monitor.sh
-./daemon/stop.sh
+./tools/daemon/monitor.sh
+./tools/daemon/stop.sh
 ```
 
 From `/home/sks/monitor_tools`, specify `lh2`, `blc`, `ftof`, or
-`trip`, for example `./daemon/stop.sh lh2`. FTOF corresponds to the
+`trip`, for example `./tools/daemon/stop.sh lh2`. FTOF corresponds to the
 `CVC_hv_monitoring` directory. Services manage Python directly, without tmux.
 
 ## One-time service-definition update
@@ -23,15 +27,15 @@ From `/home/sks/monitor_tools`, specify `lh2`, `blc`, `ftof`, or
 Stop the target before installing its updated definition:
 
 ```bash
-./daemon/stop.sh lh2
-sudo /usr/bin/python3 daemon/configure.py lh2
+./tools/daemon/stop.sh lh2
+sudo /usr/bin/python3 tools/daemon/configure.py lh2
 ```
 
 Use `all` with `configure.py` to install all four definitions, after stopping
 all four services. The installer refuses active services, validates templates,
 backs up previous definitions under `/var/backups/monitor-services/`, and reloads
 systemd. **It does not start or enable anything.** Start only when ready using
-`./daemon/start.sh TARGET`. Old tmux/oneshot definitions are rejected by start.
+`./tools/daemon/start.sh TARGET`. Old tmux/oneshot definitions are rejected by start.
 
 Definition validation without installation or service operations:
 

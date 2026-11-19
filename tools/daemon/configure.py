@@ -119,7 +119,7 @@ def main(argv=None):
     parser.add_argument('target', nargs='?', help='lh2, blc, ftof, trip, or all')
     parser.add_argument('--check', action='store_true', help='Validate templates only; no install or service operations')
     args = parser.parse_args(argv)
-    inferred = Path(__file__).resolve().parent.parent.name
+    inferred = "lh2"
     try:
         targets = select_targets(args.target or inferred)
         if args.check:

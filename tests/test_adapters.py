@@ -177,7 +177,7 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(notifier.threads, [])
 
     def test_stalled_notification_does_not_delay_equipment_actions(self):
-        config = load_config(ROOT / 'config.toml')
+        config = load_config(ROOT / 'config/config.toml')
         clock = VirtualClock()
         executor = VirtualExecutor(clock)
         notifier = DiscordNotifier('https://example.invalid/not-used', 0.01, self.log)
@@ -194,7 +194,7 @@ class AdapterTests(unittest.TestCase):
                     thread.join(1)
 
     def test_notification_queue_failure_does_not_stop_shutdown(self):
-        config = load_config(ROOT / 'config.toml')
+        config = load_config(ROOT / 'config/config.toml')
         clock = VirtualClock()
         executor = VirtualExecutor(clock)
         notifier = MagicMock()
@@ -251,7 +251,7 @@ class AdapterTests(unittest.TestCase):
         live.assert_not_called()
 
     def test_live_startup_without_caen_credentials_stops_before_any_operation(self):
-        config = load_config(ROOT / 'config.toml')
+        config = load_config(ROOT / 'config/config.toml')
         with patch.dict(os.environ, {}, clear=True), \
                 patch('lh2_monitor.credentials.load_environment', return_value=False), \
                 patch('lh2_monitor.adapters.make_logger', return_value=self.log), \

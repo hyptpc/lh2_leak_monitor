@@ -4,8 +4,8 @@ status_file = "/home/sks/share/monitor-tmp/H2tgtPresentStatus.txt"
 poll_seconds = 1
 wait_seconds = 3600
 skip_delay_seconds = 5
-log_file = "logs/monitor.log"
-lock_file = "runtime/monitor.lock"
+log_file = "../logs/monitor.log"
+lock_file = "../runtime/monitor.lock"
 
 [retry]
 attempt_timeout_seconds = 10

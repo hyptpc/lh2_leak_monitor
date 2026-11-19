@@ -8,7 +8,7 @@ from lh2_monitor.simulation import VirtualClock
 
 class PairTests(unittest.TestCase):
     def setUp(self):
-        config = load_config(Path(__file__).resolve().parent.parent / 'config.toml')
+        config = load_config(Path(__file__).resolve().parent.parent / 'config/config.toml')
         self.parameters = next(a.parameters for a in config.actions if a.kind == 'massflow_pair')
         self.clock = VirtualClock()
         self.calls = []

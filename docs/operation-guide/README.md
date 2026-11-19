@@ -1,10 +1,10 @@
 # LH2 monitor: visual operating guide
 
-[日本語版 / Japanese](README.ja.md) · [Project README](../README.md)
+[日本語版 / Japanese](README.ja.md) · [Project README](../../README.md)
 
 Read the diagrams from top to bottom. They describe the current
-[config.toml](../config.toml), [monitor entry point](../monitor.py), and
-[engine](../lh2_monitor/engine.py). Configuration changes can change the order,
+[config.toml](../../config/config.toml), [monitor entry point](../../app/monitor.py), and
+[engine](../../app/lh2_monitor/engine.py). Configuration changes can change the order,
 addresses, and timing below.
 
 **The monitor's normal startup is LIVE. The separate preflight checker never
@@ -26,13 +26,13 @@ cd /home/sks/monitor_tools/lh2_leak_monitor
 mkdir -p logs
 
 # Default: local checks AND read-only communication with every configured target.
-/home/sks/.venv/bin/python preflight.py
+./preflight.sh
 
 # Optional: local imports, configuration, credentials and input only; no equipment I/O.
-/home/sks/.venv/bin/python preflight.py --local
+./preflight.sh --local
 
 # Optional machine-readable report; this directory is excluded from Git.
-/home/sks/.venv/bin/python preflight.py --json > logs/preflight.json
+./preflight.sh --json > logs/preflight.json
 ~~~
 
 ~~~mermaid
@@ -117,7 +117,7 @@ Missing, unreadable, malformed, or duplicate values do not trigger a shutdown;
 they also do not erase the last valid state. An unchanged valid 0 does not
 repeatedly trigger anything.
 
-.env belongs beside monitor.py. It is read at LIVE startup if python-dotenv is
+.env belongs at the project root (above app/). It is read at LIVE startup if python-dotenv is
 available; changes require a new process. Exported environment variables take
 precedence. Missing CAEN credentials stop startup. Missing Discord configuration
 disables notifications but does not disable monitoring. Never commit .env,
@@ -205,7 +205,7 @@ summary; it does not send a separate recovery notification.
 A successful command or acknowledgment is **not physical verification that every
 HV, valve, and power output is off**. Process completion or cancellation ends this
 one monitoring run. Whether it restarts depends on the installed service unit;
-see [service management](../daemon/README.md), not just the repository template.
+see [service management](../../README.md#service-control), not just the repository template.
 
 ## 4. During the 60-minute wait
 
@@ -279,15 +279,15 @@ no automatic reopen/rollback.
 
 | Behavior | Source |
 | --- | --- |
-| Addresses, timing, ordered targets | [config.toml](../config.toml) |
-| LIVE startup, environment, lock, exit | [monitor.py](../monitor.py) |
-| Alert edge, retries, wait controls, summary | [engine.py](../lh2_monitor/engine.py) |
-| Status input, control files, notification delivery | [adapters.py](../lh2_monitor/adapters.py) |
-| Equipment protocol operations | [hardware.py](../lh2_monitor/hardware.py) |
-| Read-only readiness checks | [preflight.py](../lh2_monitor/preflight.py) |
-| Bounded worker cleanup | [processes.py](../lh2_monitor/processes.py) |
-| Entirely virtual behavior | [simulation.py](../lh2_monitor/simulation.py) |
+| Addresses, timing, ordered targets | [config.toml](../../config/config.toml) |
+| LIVE startup, environment, lock, exit | [monitor.py](../../app/monitor.py) |
+| Alert edge, retries, wait controls, summary | [engine.py](../../app/lh2_monitor/engine.py) |
+| Status input, control files, notification delivery | [adapters.py](../../app/lh2_monitor/adapters.py) |
+| Equipment protocol operations | [hardware.py](../../app/lh2_monitor/hardware.py) |
+| Read-only readiness checks | [preflight.py](../../app/lh2_monitor/preflight.py) |
+| Bounded worker cleanup | [processes.py](../../app/lh2_monitor/processes.py) |
+| Entirely virtual behavior | [simulation.py](../../app/lh2_monitor/simulation.py) |
 
 For visual/logic experiments without real devices, use the explicit --simulate
-mode described in the [project README](../README.md#offline-testing). Unlike the
+mode described in the [project README](../../README.md#offline-testing). Unlike the
 default equipment preflight, simulation contacts no equipment at all.

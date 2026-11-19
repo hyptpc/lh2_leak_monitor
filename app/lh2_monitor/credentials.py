@@ -10,7 +10,7 @@ def load_environment():
         from dotenv import load_dotenv
     except ImportError:
         return False
-    load_dotenv(Path(__file__).resolve().parent.parent / '.env')
+    load_dotenv(Path(__file__).resolve().parents[2] / '.env')
     return True
 
 
