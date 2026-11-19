@@ -142,6 +142,7 @@ To inspect additional logs: `journalctl -u lh2_monitor.service -n 100 --no-pager
 
 ```text
 README.md, *.sh       Guide, preflight checks and plan display
+monitor.py           Link to app/monitor.py (foreground live entry point)
 .env                 Local credentials (ignored by Git; mode 600)
 app/                 Python entry points, package and compatibility tools
 config/config.toml   Equipment addresses, sequence and timing
@@ -155,7 +156,10 @@ logs/, runtime/      Generated logs and lock files (ignored by Git)
 Use this tool's daemon/ directory for service controls and its service template.
 The only LH2 service template is
 [daemon/units/lh2_monitor.service](daemon/units/lh2_monitor.service).
-The Python CLI is [app/monitor.py](app/monitor.py); its normal mode is live.
+The top-level [monitor.py](monitor.py) links to [app/monitor.py](app/monitor.py).
+Run `/home/sks/.venv/bin/python monitor.py` for foreground live monitoring.
+Use `--show-plan` or `--simulate` for offline checks. The service keeps using
+app/monitor.py directly; its definition does not change for this link.
 Do not run compatibility tools to test readiness: some directly control equipment.
 
 Visual guides: [English](docs/operation-guide/README.md) /
