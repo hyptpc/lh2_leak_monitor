@@ -3,12 +3,17 @@
 Watches `Alert_H2leak` for a **0 → 1** transition and runs the configured
 shutdown sequence.
 
+Run the monitor from the local monitor2 checkout at
+/home/sks/monitor_tools/lh2_leak_monitor. Keep code, config, credentials, logs
+and the process lock on the local filesystem. The shared checkout is for source
+distribution; the configured alert input still depends on the shared mount.
+
 ## Start
 
 Use the equipment host's Python environment:
 
 ```bash
-cd /home/sks/share/monitor-tools/lh2_leak_monitor
+cd /home/sks/monitor_tools/lh2_leak_monitor
 python monitor.py
 ```
 

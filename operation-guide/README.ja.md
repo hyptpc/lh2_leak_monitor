@@ -16,7 +16,8 @@
 monitor2 の共有フォルダ側で実行します。
 
 ~~~bash
-cd /home/sks/share/monitor-tools/lh2_leak_monitor
+cd /home/sks/monitor_tools/lh2_leak_monitor
+mkdir -p logs
 
 # 標準：ローカル確認に加え、設定中の全機器との読み取り専用の通信確認も行います。
 /home/sks/.venv/bin/python preflight.py

@@ -16,7 +16,8 @@ Preflight is an operator step; it is not automatically run by monitor.py.
 On monitor2, from the shared project:
 
 ~~~bash
-cd /home/sks/share/monitor-tools/lh2_leak_monitor
+cd /home/sks/monitor_tools/lh2_leak_monitor
+mkdir -p logs
 
 # Default: local checks AND read-only communication with every configured target.
 /home/sks/.venv/bin/python preflight.py
