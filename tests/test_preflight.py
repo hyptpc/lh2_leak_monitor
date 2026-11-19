@@ -2,6 +2,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 import json
 import os
+import signal
 from pathlib import Path
 import shlex
 import subprocess
@@ -123,10 +124,10 @@ class PreflightTests(unittest.TestCase):
         process.communicate.side_effect = [subprocess.TimeoutExpired("probe", 3), ("", "")]
         with patch.object(p.subprocess, "Popen", return_value=process) as spawn, \
                 patch.object(p.os, "killpg") as kill:
-            with self.assertRaises(subprocess.TimeoutExpired):
+            with self.assertRaisesRegex(RuntimeError, "timed out.*UNKNOWN"):
                 p.run_probe("caen", {}, 1)
         self.assertTrue(spawn.call_args.kwargs["start_new_session"])
-        kill.assert_called_once_with(1234, p.signal.SIGKILL)
+        kill.assert_called_once_with(1234, signal.SIGKILL)
 
     def test_worker_failure_does_not_echo_unstructured_output(self):
         process = MagicMock(returncode=1)

@@ -88,7 +88,9 @@ class AdapterTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'cancel'
             path.touch()
-            info = types.SimpleNamespace(st_mode=path.stat().st_mode, st_uid=0)
+            actual = path.stat()
+            info = types.SimpleNamespace(st_uid=0, **{key: getattr(actual, key) for key in
+                ('st_mode', 'st_dev', 'st_ino', 'st_mtime_ns', 'st_ctime_ns')})
             triggers = FileTriggers({'cancel': path}, self.log)
             with patch('lh2_monitor.adapters.os.geteuid', return_value=1000), \
                     patch.object(Path, 'lstat', return_value=info):

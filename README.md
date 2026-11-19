@@ -62,10 +62,21 @@ Create a file from another terminal:
 | `touch /tmp/cancel.now` | Cancel remaining steps and exit the monitor |
 | `touch /tmp/extend.now` | Reset the wait to 60 minutes |
 
-These controls apply only during the wait. Create them as the monitor user
-(`sks`) or root, using regular files; other owners, symlinks, and special files
-are ignored with a warning. Old accepted control files are cleared at startup. If no control file is created, final power-off proceeds automatically
+These controls apply only during the wait. Normally create them as the monitor
+user (sks), using regular files. Root-owned regular files are also accepted;
+other owners, symlinks, and special files are ignored with a warning. A trusted
+request that cannot be removed is accepted once and remembered by inode and
+change times, so it cannot repeatedly extend the wait. Touching it again as its
+owner creates a new request. Old accepted requests are consumed at startup.
+Inspection errors are warned and ignored without aborting remaining shutdown work. If no control file is created, final power-off proceeds automatically
 after 60 minutes. Logs are saved to `logs/monitor.log`.
+
+After a worker times out, its process group is sent SIGKILL. Cleanup waits at
+most 2 additional seconds. If the worker cannot be reaped promptly, its result
+remains UNKNOWN and the monitor proceeds with its normal retry/remaining-target
+policy; a background daemon only reaps the process later. The same cleanup
+limit applies to preflight probes. This is not a guarantee that a remote command
+did or did not take effect.
 
 ## First-time setup
 

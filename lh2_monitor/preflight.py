@@ -10,13 +10,13 @@ import os
 from pathlib import Path
 import re
 import shlex
-import signal
 import socket
 import subprocess
 import sys
 import time
 
 from .config import load_config
+from .processes import terminate_group
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -176,12 +176,13 @@ def run_probe(kind, parameters, timeout):
     try:
         output, _ = worker.communicate(
             json.dumps({"parameters": parameters, "timeout": timeout}), timeout=budget)
-    except BaseException:
-        try:
-            os.killpg(worker.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        worker.communicate()
+    except BaseException as error:
+        cleanup = terminate_group(worker)
+        if isinstance(error, subprocess.TimeoutExpired):
+            detail = f'Probe {kind} timed out after {budget:g}s; result UNKNOWN'
+            if cleanup.note:
+                detail += '; ' + cleanup.note
+            raise RuntimeError(detail) from error
         raise
     records = [line[len(RESULT_PREFIX):] for line in output.splitlines()
                if line.startswith(RESULT_PREFIX)]

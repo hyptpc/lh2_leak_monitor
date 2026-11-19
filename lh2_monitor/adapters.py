@@ -4,7 +4,6 @@ import json
 import logging
 import os
 from pathlib import Path
-import signal
 import stat
 import subprocess
 import sys
@@ -12,6 +11,7 @@ import threading
 import time
 
 from .engine import ActionError, CommandResult, Status
+from .processes import terminate_group
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -34,31 +34,53 @@ class FileTriggers:
         self.paths = paths
         self.log = log
         self._warned = set()
+        self._consumed = {}
+
+    def _warn_once(self, name, message):
+        if name not in self._warned:
+            self.log('WARNING', message)
+            self._warned.add(name)
 
     def consume(self, name):
         path = self.paths[name]
         try:
-            info = path.lstat()  # Inspect the request itself, never follow symlinks.
-            if not stat.S_ISREG(info.st_mode) or info.st_uid not in {os.geteuid(), 0}:
-                if name not in self._warned:
-                    self.log('WARNING', f'Ignored untrusted control file: {path}; '
-                             'expected a regular file owned by the monitor user or root')
-                    self._warned.add(name)
-                return False
-            path.unlink()
-            self._warned.discard(name)
-            return True
+            info = path.lstat()  # Never follow a request symlink.
         except FileNotFoundError:
             self._warned.discard(name)
+            self._consumed.pop(name, None)
             return False
         except OSError as error:
-            # Fail visibly instead of repeatedly extending the timer forever.
-            raise RuntimeError(f'Cannot consume {name} trigger: {error}') from error
+            self._warn_once(name, f'Cannot inspect control file {path}: {type(error).__name__}; '
+                            'request ignored; monitoring/shutdown continues')
+            return False
+        if not stat.S_ISREG(info.st_mode) or info.st_uid not in {os.geteuid(), 0}:
+            self._warn_once(name, f'Ignored untrusted control file: {path}; '
+                            'expected a regular file owned by the monitor user or root')
+            return False
+        identity = (info.st_dev, info.st_ino, info.st_mtime_ns, info.st_ctime_ns)
+        if self._consumed.get(name) == identity:
+            return False
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            self._warned.discard(name)
+            self._consumed.pop(name, None)
+            return False
+        except OSError as error:
+            # In sticky /tmp, sks cannot unlink a root-owned request. Honor the
+            # trusted request once, without an endless extend/skip loop.
+            self._consumed[name] = identity
+            self._warn_once(name, f'Accepted control file once but could not remove {path}: '
+                            f'{type(error).__name__}; unchanged file will not repeat')
+            return True
+        self._warned.discard(name)
+        self._consumed.pop(name, None)
+        return True
 
     def clear(self):
         for name in self.paths:
             if self.consume(name):
-                self.log('WARNING', f'Removed old trigger file: {self.paths[name]}')
+                self.log('WARNING', f'Consumed old trigger request: {self.paths[name]}')
 
 
 class ProcessExecutor:
@@ -85,15 +107,16 @@ class ProcessExecutor:
         except BaseException as error:
             # Include SSH descendants, not only the Python worker. A timeout
             # cannot establish whether a remote command took effect.
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            output, errors = process.communicate()
-            if output.strip():
-                self.log('INFO', f'{action.id}: {output.strip()}')
+            cleanup = terminate_group(process)
+            if cleanup.output.strip():
+                self.log('INFO', f'{action.id}: {cleanup.output.strip()}')
+            if cleanup.note:
+                self.log('WARNING', f'{action.id}: {cleanup.note}')
             if isinstance(error, subprocess.TimeoutExpired):
-                raise ActionError(f'Timeout after {timeout:g}s; equipment result UNKNOWN') from error
+                detail = f'Timeout after {timeout:g}s; equipment result UNKNOWN'
+                if cleanup.note:
+                    detail += '; ' + cleanup.note
+                raise ActionError(detail) from error
             raise
         for line in output.splitlines():
             if line and not line.startswith('LH2_RESULT_JSON:'):

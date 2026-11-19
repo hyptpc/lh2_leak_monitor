@@ -82,7 +82,7 @@ start an API server on a remote equipment host.
 ~~~mermaid
 flowchart TD
     A["Start monitor.py<br/>Default mode: LIVE"] --> B["Validate config; acquire single-monitor lock"]
-    B --> C["Clear old accepted control files<br/>Load local .env; existing environment wins"]
+    B --> C["Consume old accepted control requests<br/>Load local .env; existing environment wins"]
     C --> K{"Required CAEN credentials present?"}
     K -->|No| E["Log startup error; exit<br/>No equipment commands"]
     K -->|Yes| S["Read Alert_H2leak every 1 second"]
@@ -185,6 +185,13 @@ slot does not prevent attempts on other selected slots. Errors are recorded,
 and attempts continue with the remaining configured equipment. A timeout means
 the equipment result is unknown, not that the command definitely had no effect.
 
+After a timeout, the worker process group is sent SIGKILL and cleanup waits at
+most 2 additional seconds. If cleanup cannot finish, the monitor records UNKNOWN
+and continues its existing retry/remaining-target policy. A daemon reaper waits
+outside the control loop; it does not delay monitoring or program exit. The
+same bounded cleanup is used by preflight. Kernel-stuck processes cannot be
+forced to exit immediately, and remote effects may remain unknown.
+
 Discord uses background, best-effort delivery. Failure or absence of the webhook
 does not stop equipment shutdown. Current code sends an initial and a final
 summary; it does not send a separate recovery notification.
@@ -232,10 +239,14 @@ If requests coexist, priority is **cancel → skip → extend**. Extend is not
 processed after skip has entered its 5-second grace period. Cancellation is also
 checked at the normal/grace deadline boundary.
 
-Use regular files owned by the monitor user (sks) or root. Symlinks, special
-files, and other owners are ignored. Accepted requests are consumed once; stale
-accepted files are cleared at LIVE startup. Do not create them in advance
-expecting them to survive startup.
+Normally use regular files owned by the monitor user (sks); root-owned regular
+files are also accepted. Symlinks, special files, and other owners are ignored.
+If a trusted request cannot be removed, its inode and modification/change times
+are remembered: it is honored once, not repeatedly. Touch it again as its owner
+to create a new request. Inspection errors are warned and ignored, without
+aborting the remaining shutdown steps. Old accepted requests are consumed at
+LIVE startup, including retained files, so do not pre-create a request expecting
+it to fire after startup.
 
 ## 5. Mass-flow pair: the important branch
 
@@ -268,6 +279,7 @@ no automatic reopen/rollback.
 | Status input, control files, notification delivery | [adapters.py](../lh2_monitor/adapters.py) |
 | Equipment protocol operations | [hardware.py](../lh2_monitor/hardware.py) |
 | Read-only readiness checks | [preflight.py](../lh2_monitor/preflight.py) |
+| Bounded worker cleanup | [processes.py](../lh2_monitor/processes.py) |
 | Entirely virtual behavior | [simulation.py](../lh2_monitor/simulation.py) |
 
 For visual/logic experiments without real devices, use the explicit --simulate
