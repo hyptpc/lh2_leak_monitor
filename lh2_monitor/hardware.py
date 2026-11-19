@@ -48,24 +48,65 @@ def kikusui_off(parameters, timeout):
 
 
 def caen_operation(parameters, timeout, *, inventory=False):
-    # The C library can block. The parent process enforces the timeout.
+    # Pw is the power switch (0 = OFF), not a voltage setpoint.
+    # Native calls are bounded by the parent worker's deadline.
     username, password = caen_credentials()
     from caen_libs import caenhvwrapper as hv
 
     with hv.Device.open(hv.SystemType.SY1527, hv.LinkType.TCPIP,
                         parameters['host'], username, password) as device:
-        board = next((board for board in device.get_crate_map()
-                      if board is not None and board.slot == parameters['slot']), None)
-        if board is None or board.n_channel <= 0:
-            raise RuntimeError(f"CAEN slot {parameters['slot']} is missing or has no channels")
-        if inventory:
-            return {'detail': f'CAEN slot {board.slot}: {board.n_channel} channels',
-                    'channels': list(range(board.n_channel))}
-        channel = parameters['channel']
-        if channel not in range(board.n_channel):
-            raise RuntimeError(f'CAEN channel {channel} is not present')
-        device.set_ch_param(board.slot, [channel], 'Pw', 0)
-    return 'CAEN OFF command accepted (physical output not verified)'
+        boards = [board for board in device.get_crate_map() if board is not None]
+        selector = parameters.get('channel_name_contains')
+        if selector:
+            groups = []
+            for board in boards:
+                channels = list(range(board.n_channel))
+                if not channels:
+                    continue
+                names = device.get_ch_name(board.slot, channels)
+                if len(names) != len(channels) or not all(isinstance(name, str) for name in names):
+                    raise RuntimeError(f'Invalid CAEN channel names in slot {board.slot}')
+                selected = [(ch, name) for ch, name in zip(channels, names)
+                            if selector.casefold() in name.casefold()]
+                if selected:
+                    groups.append({'slot': board.slot, 'channels': [ch for ch, _ in selected],
+                                   'names': [name for _, name in selected]})
+            if not groups:
+                raise RuntimeError(f'No CAEN channel names contain {selector!r}; no OFF sent')
+            if inventory:
+                return {'detail': f'CAEN name selection {selector!r}: {groups}', 'groups': groups}
+            selected = next((group for group in groups if group['slot'] == parameters['slot']), None)
+            if selected is None or selected['channels'] != parameters['channels']:
+                raise RuntimeError('CAEN selected channel layout changed; no OFF sent')
+            # Re-read names immediately before the batch write. Never broaden to all channels.
+            if selected['names'] != parameters['names']:
+                raise RuntimeError('CAEN selected channel names changed; no OFF sent')
+            slot, channels = selected['slot'], selected['channels']
+        else:
+            board = next((board for board in boards if board.slot == parameters['slot']), None)
+            if board is None or board.n_channel <= 0:
+                raise RuntimeError(f"CAEN slot {parameters['slot']} is missing or has no channels")
+            if inventory:
+                return {'detail': f'CAEN slot {board.slot}: {board.n_channel} channels',
+                        'channels': list(range(board.n_channel))}
+            channel = parameters['channel']
+            if channel not in range(board.n_channel):
+                raise RuntimeError(f'CAEN channel {channel} is not present')
+            slot, channels = board.slot, [channel]
+
+        # One OFF call per selected slot; do not write V0Set or touch other channels.
+        device.set_ch_param(slot, channels, 'Pw', 0)
+        deadline = time.monotonic() + min(3.0, timeout / 2)
+        while True:
+            power = device.get_ch_param(slot, channels, 'Pw')
+            if len(power) == len(channels) and all(value == 0 for value in power):
+                break
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise RuntimeError(f'CAEN slot {slot} channels {channels} did not report power OFF')
+            time.sleep(min(0.2, remaining))
+    return (f'CAEN slot {slot} channels {channels} report Pw=OFF; voltage setpoint unchanged '
+            '(physical voltage/ramp-down not verified)')
 
 
 def usb_off(parameters, timeout):

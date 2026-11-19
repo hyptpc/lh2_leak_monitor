@@ -102,6 +102,9 @@ def probe_massflow(parameters, timeout):
 def probe_caen(parameters, timeout):
     from .hardware import caen_operation
     result = caen_operation(parameters, timeout, inventory=True)
+    if parameters.get("channel_name_contains"):
+        return (f"Login and BLC2 name selection OK: {result['groups']}. "
+                "No channel parameter written.")
     return (f"Login and crate inventory OK; slot {parameters['slot']}, "
             f"{len(result['channels'])} channels. No channel parameter written.")
 
@@ -220,7 +223,7 @@ def perform_check(name, kind, parameters, timeout):
         return Check(name, "FAIL", safe_error(error))
 
 
-def collect_checks(config, *, devices=False, timeout=None):
+def collect_checks(config, *, devices=True, timeout=None):
     from .credentials import load_environment
     checks = [Check("Python", "PASS", f"{sys.version.split()[0]}: {sys.executable}"),
               Check("Configuration", "PASS", f"{len(config.actions)} ordered actions validated.")]
@@ -259,7 +262,7 @@ def collect_checks(config, *, devices=False, timeout=None):
             checks.append(perform_check(name, kind, parameters, timeout))
     else:
         checks.append(Check("Equipment communication", "SKIP",
-                            "Not contacted. Add --devices for read-only communication checks."))
+                            "Not contacted (--local). Omit --local to check equipment read-only."))
     return checks
 
 
@@ -273,7 +276,12 @@ def positive_timeout(value):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=ROOT / "config.toml")
-    parser.add_argument("--devices", action="store_true", help="Query configured devices read-only")
+    scope = parser.add_mutually_exclusive_group()
+    scope.add_argument("--devices", dest="devices", action="store_true",
+                       help="Query configured devices read-only (default)")
+    scope.add_argument("--local", dest="devices", action="store_false",
+                       help="Only local checks; do not contact equipment")
+    parser.set_defaults(devices=True)
     parser.add_argument("--timeout", type=positive_timeout, help="Per-probe I/O timeout in seconds")
     parser.add_argument("--json", action="store_true", help="Print a JSON report")
     parser.add_argument("--probe", choices=tuple(PROBES), help=argparse.SUPPRESS)

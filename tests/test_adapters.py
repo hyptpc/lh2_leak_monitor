@@ -158,6 +158,16 @@ class AdapterTests(unittest.TestCase):
                     with self.assertRaises(ActionError):
                         ProcessExecutor(self.log).run_once(action, RetryPolicy())
 
+    def test_worker_named_inventory_rejects_unmatched_names(self):
+        process = MagicMock(returncode=0)
+        process.communicate.return_value = ('LH2_RESULT_JSON:' + json.dumps({
+            'detail': 'test', 'groups': [{'slot': 4, 'channels': [0], 'names': ['BLC1a-cat']}]
+        }), '')
+        action = Action('inventory', 'test', 'caen_inventory', {'channel_name_contains': 'BLC2'})
+        with patch('lh2_monitor.adapters.subprocess.Popen', return_value=process):
+            with self.assertRaises(ActionError):
+                ProcessExecutor(self.log).run_once(action, RetryPolicy())
+
     def test_missing_webhook_does_not_disable_monitoring(self):
         notifier = DiscordNotifier(None, 10, self.log)
         notifier.send('must not send')
@@ -287,6 +297,97 @@ class AdapterTests(unittest.TestCase):
 
 
 class HardwareAdapterTests(unittest.TestCase):
+    def fake_caen_power_device(self, power):
+        device = MagicMock()
+        device.get_crate_map.return_value = [types.SimpleNamespace(slot=4, n_channel=2)]
+        device.get_ch_param.return_value = [power]
+        context = MagicMock()
+        context.__enter__.return_value = device
+        hv = types.SimpleNamespace(
+            Device=types.SimpleNamespace(open=MagicMock(return_value=context)),
+            SystemType=types.SimpleNamespace(SY1527='SY1527'),
+            LinkType=types.SimpleNamespace(TCPIP='TCPIP'))
+        module = types.ModuleType('caen_libs')
+        module.caenhvwrapper = hv
+        return device, module
+
+    def test_caen_off_uses_power_switch_preserves_voltage_and_reads_back_off(self):
+        device, module = self.fake_caen_power_device(0)
+        with patch.dict(sys.modules, {'caen_libs': module}), patch.dict(os.environ, {
+            'CAEN_USERNAME': 'test-user', 'CAEN_PASSWORD': 'test-password',
+        }):
+            detail = caen_operation({'host': '192.0.2.1', 'slot': 4, 'channel': 1}, 10)
+        device.set_ch_param.assert_called_once_with(4, [1], 'Pw', 0)
+        device.get_ch_param.assert_called_once_with(4, [1], 'Pw')
+        self.assertIn('Pw=OFF', detail)
+        self.assertIn('setpoint unchanged', detail)
+
+    def test_caen_power_still_on_is_reported_as_failure(self):
+        device, module = self.fake_caen_power_device(1)
+        with patch.dict(sys.modules, {'caen_libs': module}), patch.dict(os.environ, {
+            'CAEN_USERNAME': 'test-user', 'CAEN_PASSWORD': 'test-password',
+        }), patch('lh2_monitor.hardware.time.monotonic', side_effect=[0, 4]):
+            with self.assertRaisesRegex(RuntimeError, 'did not report power OFF'):
+                caen_operation({'host': '192.0.2.1', 'slot': 4, 'channel': 1}, 10)
+        device.set_ch_param.assert_called_once_with(4, [1], 'Pw', 0)
+
+    def fake_named_caen(self):
+        device, module = self.fake_caen_power_device(0)
+        device.get_crate_map.return_value = [
+            types.SimpleNamespace(slot=4, n_channel=12),
+            types.SimpleNamespace(slot=8, n_channel=24)]
+        names = ['BLC1a-cat', 'BLC1a-pot', 'BLC1b-cat', 'BLC1b-pot',
+                 'BLC2a-cat', 'BLC2a-pot', 'BLC2b-cat', 'BLC2b-pot'] + ['n/a'] * 4
+        device.get_ch_name.side_effect = lambda slot, channels: (
+            [names[ch] for ch in channels] if slot == 4 else ['T0'] * len(channels))
+        device.get_ch_param.return_value = [0, 0, 0, 0]
+        return device, module, names
+
+    def test_named_inventory_selects_only_blc2_and_never_writes(self):
+        device, module, names = self.fake_named_caen()
+        with patch.dict(sys.modules, {'caen_libs': module}), patch.dict(os.environ, {
+            'CAEN_USERNAME': 'test-user', 'CAEN_PASSWORD': 'test-password',
+        }):
+            result = caen_operation({'host': '192.0.2.1', 'channel_name_contains': 'BLC2'},
+                                    10, inventory=True)
+        self.assertEqual(result['groups'], [{'slot': 4, 'channels': [4, 5, 6, 7],
+                                             'names': names[4:8]}])
+        device.set_ch_param.assert_not_called()
+
+    def test_blc2_selected_channels_are_powered_off_in_one_batch(self):
+        device, module, names = self.fake_named_caen()
+        parameters = {'host': '192.0.2.1', 'channel_name_contains': 'BLC2',
+                      'slot': 4, 'channels': [4, 5, 6, 7], 'names': names[4:8]}
+        with patch.dict(sys.modules, {'caen_libs': module}), patch.dict(os.environ, {
+            'CAEN_USERNAME': 'test-user', 'CAEN_PASSWORD': 'test-password',
+        }):
+            caen_operation(parameters, 10)
+        device.set_ch_param.assert_called_once_with(4, [4, 5, 6, 7], 'Pw', 0)
+        device.get_ch_param.assert_called_once_with(4, [4, 5, 6, 7], 'Pw')
+
+    def test_named_selection_without_matches_never_writes(self):
+        device, module, names = self.fake_named_caen()
+        device.get_ch_name.side_effect = lambda slot, channels: ['BLC1'] * len(channels)
+        with patch.dict(sys.modules, {'caen_libs': module}), patch.dict(os.environ, {
+            'CAEN_USERNAME': 'test-user', 'CAEN_PASSWORD': 'test-password',
+        }):
+            with self.assertRaisesRegex(RuntimeError, 'No CAEN channel names'):
+                caen_operation({'host': '192.0.2.1', 'channel_name_contains': 'BLC2'},
+                               10, inventory=True)
+        device.set_ch_param.assert_not_called()
+
+    def test_changed_names_abort_batch_before_power_write(self):
+        device, module, names = self.fake_named_caen()
+        parameters = {'host': '192.0.2.1', 'channel_name_contains': 'BLC2',
+                      'slot': 4, 'channels': [4, 5, 6, 7], 'names': names[4:8]}
+        names[4] = 'BLC2-renamed'
+        with patch.dict(sys.modules, {'caen_libs': module}), patch.dict(os.environ, {
+            'CAEN_USERNAME': 'test-user', 'CAEN_PASSWORD': 'test-password',
+        }):
+            with self.assertRaisesRegex(RuntimeError, 'names changed'):
+                caen_operation(parameters, 10)
+        device.set_ch_param.assert_not_called()
+
     def test_http_failure_does_not_count_as_hv_success(self):
         connection = MagicMock()
         connection.getresponse.return_value.status = 503

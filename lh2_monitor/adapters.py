@@ -110,11 +110,28 @@ class ProcessExecutor:
             channels = result.get('channels', [])
             if not isinstance(detail, str) or not isinstance(channels, list):
                 raise ValueError('Invalid worker result types')
-            if action.kind == 'caen_inventory':
+            groups = result.get('groups', [])
+            if action.kind == 'caen_inventory' and action.parameters.get('channel_name_contains'):
+                selector = action.parameters['channel_name_contains'].casefold()
+                if not isinstance(groups, list) or not groups:
+                    raise ValueError('Missing named CAEN groups')
+                slots = set()
+                for group in groups:
+                    slot, selected, names = group['slot'], group['channels'], group['names']
+                    if (type(slot) is not int or not 0 <= slot <= 255 or slot in slots
+                            or not isinstance(selected, list) or not selected
+                            or any(type(ch) is not int or not 0 <= ch <= 255 for ch in selected)
+                            or len(selected) != len(set(selected))
+                            or not isinstance(names, list) or len(names) != len(selected)
+                            or any(not isinstance(name, str) or selector not in name.casefold()
+                                   for name in names)):
+                        raise ValueError('Invalid named CAEN group')
+                    slots.add(slot)
+            elif action.kind == 'caen_inventory':
                 if (not channels or any(type(ch) is not int or not 0 <= ch <= 255 for ch in channels)
                         or len(channels) != len(set(channels))):
                     raise ValueError('Invalid CAEN channel inventory')
-            return CommandResult(detail, tuple(channels))
+            return CommandResult(detail, tuple(channels), tuple(groups))
         except (ValueError, KeyError, TypeError) as error:
             raise ActionError(f'Invalid worker result: {error}') from error
 

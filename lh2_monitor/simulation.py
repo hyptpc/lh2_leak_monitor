@@ -42,11 +42,15 @@ class VirtualNotifier:
 
 
 class VirtualExecutor:
-    def __init__(self, clock, responses=None, duration_seconds=0, caen_channels=2):
+    def __init__(self, clock, responses=None, duration_seconds=0, caen_channels=2, caen_groups=None):
         self.clock = clock
         self.responses = {key: deque(values) for key, values in (responses or {}).items()}
         self.duration_seconds = duration_seconds
         self.caen_channels = caen_channels
+        self.caen_groups = caen_groups if caen_groups is not None else [
+            {'slot': 4, 'channels': [4, 5, 6, 7],
+             'names': ['BLC2a-cat', 'BLC2a-pot', 'BLC2b-cat', 'BLC2b-pot']}]
+
         self.calls = []
 
     def run_once(self, action, policy):
@@ -58,6 +62,9 @@ class VirtualExecutor:
             if outcome == 'timeout':
                 self.clock.sleep(policy.attempt_timeout_seconds)
             raise ActionError(f'SIMULATED {outcome}')
+        if action.kind == 'caen_inventory' and action.parameters.get('channel_name_contains'):
+            return CommandResult('SIMULATED named inventory; no equipment contacted',
+                                 groups=tuple(self.caen_groups))
         return CommandResult('SIMULATED command success; no equipment contacted',
                              tuple(range(self.caen_channels)) if action.kind == 'caen_inventory' else ())
 

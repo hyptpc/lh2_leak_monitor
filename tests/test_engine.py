@@ -32,21 +32,21 @@ class EngineTests(unittest.TestCase):
         actions = self.config.actions
         self.assertEqual(actions[-1].id, 'kikusui42')
         self.assertEqual(self.config.wait_seconds, 3600)
-        self.assertEqual([a.id for a in actions[:9]],
+        self.assertEqual([a.id for a in actions[:10]],
                          [f'hv12.{port}' for port in (1, 2, 3)]
                          + [f'hv13.{port}' for port in range(4)]
-                         + ['hv90.0', 'hv90.2'])
-        self.assertEqual([a.id for a in actions[9:13]],
+                         + ['hv90.0', 'hv90.1', 'hv90.2'])
+        self.assertEqual([a.id for a in actions[10:14]],
                          ['massflow_pair', 'kikusui45', 'chamber', 'wait'])
-        self.assertEqual([a.id for a in actions[13:-1]],
+        self.assertEqual([a.id for a in actions[14:-1]],
                          [f'usb{host}.{port}' for host in (12, 13) for port in range(1, 5)])
         self.assertFalse(any('T0' in a.name for a in actions))
         self.assertFalse((ROOT / 'shutdown_caenhv1_T0.py').exists())
 
-    def test_requested_hv_targets_exclude_sch_hv4_and_obsolete_monitor3(self):
+    def test_requested_hv_targets_include_sch_and_exclude_hv4_and_obsolete_monitor3(self):
         hv = [a for a in self.config.actions if a.kind == 'hv']
         monitor2 = [a for a in hv if a.parameters['host'] == '192.168.20.90']
-        self.assertEqual([a.parameters['target_port'] for a in monitor2], [0, 2])
+        self.assertEqual([a.parameters['target_port'] for a in monitor2], [0, 1, 2])
         self.assertTrue(all(a.parameters['port'] == 8000 for a in monitor2))
         self.assertFalse(any(a.parameters['host'] == '192.168.20.91' for a in hv))
         self.assertFalse(any(a.id == 'hv12.0' for a in hv))
@@ -100,19 +100,31 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(self.ids()[-1], 'kikusui42')
         self.assertIn('WITH ERRORS', self.notifier.messages[-1])
 
-    def test_single_blocking_caen_channel_does_not_skip_next_channel(self):
-        self.executor = VirtualExecutor(self.clock, {'chamber.0': ['timeout'] * 3})
+    def test_blocking_caen_slot_does_not_skip_other_matching_slot(self):
+        groups = [
+            {'slot': 4, 'channels': [4, 5, 6, 7],
+             'names': ['BLC2a-cat', 'BLC2a-pot', 'BLC2b-cat', 'BLC2b-pot']},
+            {'slot': 5, 'channels': [0], 'names': ['BLC2-extra']},
+        ]
+        self.executor = VirtualExecutor(self.clock, {'chamber.slot4': ['timeout'] * 3},
+                                        caen_groups=groups)
         outcome = self.engine().run_sequence()
         self.assertEqual(outcome.exit_code, 1)
-        self.assertEqual(self.ids().count('chamber.0'), 3)
-        self.assertIn('chamber.1', self.ids())
+        self.assertEqual(self.ids().count('chamber.slot4'), 3)
+        self.assertIn('chamber.slot5', self.ids())
         self.assertEqual(self.ids()[-1], 'kikusui42')
+
+    def test_named_caen_is_one_batch_operation_per_selected_slot(self):
+        self.engine().run_sequence()
+        self.assertEqual(self.ids().count('chamber.slot4'), 1)
+        self.assertFalse(any(key.startswith('chamber.') and key not in {
+            'chamber.inventory', 'chamber.slot4'} for key in self.ids()))
 
     def test_caen_inventory_failure_does_not_claim_channels_were_stopped(self):
         self.executor = VirtualExecutor(self.clock, {'chamber.inventory': ['error'] * 3})
         outcome = self.engine().run_sequence()
         self.assertEqual(outcome.exit_code, 1)
-        self.assertNotIn('chamber.0', self.ids())
+        self.assertNotIn('chamber.slot4', self.ids())
         self.assertEqual(self.ids()[-1], 'kikusui42')
 
     def test_massflow_pair_is_not_retried_wholesale(self):
@@ -126,7 +138,7 @@ class EngineTests(unittest.TestCase):
         self.executor = VirtualExecutor(self.clock, duration_seconds=7)
         self.engine().run_sequence()
         calls = {key: at for at, key in self.executor.calls}
-        self.assertEqual(calls['usb12.1'] - (calls['chamber.1'] + 7), 3600)
+        self.assertEqual(calls['usb12.1'] - (calls['chamber.slot4'] + 7), 3600)
 
     def test_cancel_during_wait_exits_without_any_post_wait_commands(self):
         self.triggers.events = [{'at': 100, 'name': 'cancel'}]
@@ -170,7 +182,7 @@ class EngineTests(unittest.TestCase):
     def test_cancel_is_not_consumed_after_wait(self):
         self.executor = VirtualExecutor(self.clock, duration_seconds=1)
         self.triggers.events = [{'at': 3620, 'name': 'cancel'}]
-        # Pre-wait: 9 HV + pair + Kikusui + inventory + two CAEN channels = 14s.
+        # Pre-wait: 10 HV + pair + Kikusui + inventory + one CAEN slot batch = 14s.
         outcome = self.engine().run_sequence()
         self.assertFalse(outcome.canceled)
         self.assertEqual(self.ids()[-1], 'kikusui42')

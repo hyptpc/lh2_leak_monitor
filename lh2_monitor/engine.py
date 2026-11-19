@@ -13,6 +13,7 @@ class ActionError(Exception):
 class CommandResult:
     detail: str
     channels: tuple = ()
+    groups: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -59,12 +60,24 @@ class Engine:
         return None, f'{action.id}: {last_error}'
 
     def execute_caen(self, action):
-        # Discover the slot once, then give EACH channel its own deadline and
-        # retry budget. A blocking channel must not prevent other channels.
+        # Discover the named groups first; each matching slot gets one batch OFF.
+        # Legacy fixed-slot plans retain per-channel retry behavior.
         inventory = replace(action, id=f'{action.id}.inventory', kind='caen_inventory')
         result, error = self.execute(inventory)
         if error:
             return [error]
+        if action.parameters.get('channel_name_contains'):
+            if not result.groups:
+                return [f'{action.id}: no named CAEN channel groups; no OFF attempted']
+            errors = []
+            for group in result.groups:
+                command = Action(f"{action.id}.slot{group['slot']}",
+                                 f"{action.name} slot {group['slot']} channels {group['channels']}",
+                                 'caen', {**action.parameters, **group})
+                _, failure = self.execute(command)
+                if failure:
+                    errors.append(failure)
+            return errors
         if not result.channels:
             return [f'{action.id}: CAEN returned no channels; shutdown not attempted']
         errors = []

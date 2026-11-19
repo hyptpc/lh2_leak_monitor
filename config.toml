@@ -34,13 +34,13 @@ port = 8000
 ports = [0, 1, 2, 3]
 
 # These supplies are controlled by HV3 on monitor2, not monitor3 (.91).
-# Only 0 T2 and 2 BH2; leave 1 SCH and the separate HV4 API (:8001) untouched here.
+# Ports 0 T2, 1 SCH and 2 BH2; the separate HV4 API (:8001) is not used here.
 [targets.hv90]
-name = "T2/BH2 via monitor2 HV3"
+name = "T2/SCH/BH2 via monitor2 HV3"
 kind = "hv"
 host = "192.168.20.90"
 port = 8000
-ports = [0, 2]
+ports = [0, 1, 2]
 
 [targets.flow_out]
 name = "Outlet mass-flow valve"
@@ -57,16 +57,17 @@ port = 4001
 address = 1
 
 [targets.kikusui45]
-name = "Kikusui BLC2 Vth"
+name = "BLC2Vth"
 kind = "kikusui"
 host = "192.168.20.45"
 port = 5025
 
 [targets.chamber]
-name = "CAEN Chamber"
+name = "CAEN BLC2 channels"
 kind = "caen"
 host = "192.168.20.51"
-slot = 4
+# Match channel names across all occupied slots; never power off BLC1 or T0.
+channel_name_contains = "BLC2"
 
 [targets.usb12]
 name = "Pi .12 USB power"
@@ -85,7 +86,7 @@ hub = "1-1"
 ports = [1, 2, 3, 4]
 
 [targets.kikusui42]
-name = "Kikusui BLC2 (last)"
+name = "Shutdown tap 5V (last)"
 kind = "kikusui"
 host = "192.168.20.42"
 port = 5025

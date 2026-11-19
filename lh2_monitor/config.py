@@ -83,7 +83,14 @@ def load_config(path):
         if kind == 'massflow':
             _integer(target['address'], f'{key}.address', 0, 99)
         if kind == 'caen':
-            _integer(target['slot'], f'{key}.slot', 0, 255)
+            selector = target.get('channel_name_contains')
+            if selector is not None:
+                if not isinstance(selector, str) or not selector.strip() or len(selector) > 32:
+                    raise ValueError('CAEN channel_name_contains must be a nonempty short string')
+                if 'slot' in target:
+                    raise ValueError('Named CAEN selection scans all slots; do not also set slot')
+            else:
+                _integer(target['slot'], f'{key}.slot', 0, 255)
         if kind == 'usb':
             if not re.fullmatch(r'[a-zA-Z0-9_][a-zA-Z0-9_.-]*', target['user']):
                 raise ValueError(f'Invalid SSH user for {key}')
@@ -156,7 +163,10 @@ def format_plan(config):
             if action.kind == 'usb':
                 detail += f" (hub {p['hub']})"
             if action.kind == 'caen':
-                detail += f" / slot {p['slot']}, all channels OFF"
+                if p.get('channel_name_contains'):
+                    detail += f" / all slots: names containing {p['channel_name_contains']!r}; batch OFF per slot"
+                else:
+                    detail += f" / slot {p['slot']}, all channels OFF"
         lines.append(f'{index:>5}  {action.name:<28} {detail}')
     lines.append(f'Retry: {config.retry.max_attempts} attempts total, '
                  f'{config.retry.attempt_timeout_seconds:g}s per attempt, '

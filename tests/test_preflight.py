@@ -28,7 +28,7 @@ class PreflightTests(unittest.TestCase):
                           "kikusui", "caen", "usb", "usb", "kikusui"])
         self.assertEqual(checks[0][2]["ports"], [1, 2, 3])
         self.assertEqual(checks[2][2]["host"], "192.168.20.90")
-        self.assertEqual(checks[2][2]["ports"], [0, 2])
+        self.assertEqual(checks[2][2]["ports"], [0, 1, 2])
         self.assertEqual(checks[-3][2]["ports"], [1, 2, 3, 4])
 
     def test_http_helper_uses_get_only(self):
@@ -89,6 +89,14 @@ class PreflightTests(unittest.TestCase):
             detail = p.probe_caen({"slot": 4}, 1)
         operation.assert_called_once_with({"slot": 4}, 1, inventory=True)
         self.assertIn("No channel parameter written", detail)
+
+    def test_named_caen_preflight_is_inventory_only(self):
+        groups = [{'slot': 4, 'channels': [4, 5, 6, 7],
+                   'names': ['BLC2a-cat', 'BLC2a-pot', 'BLC2b-cat', 'BLC2b-pot']}]
+        with patch('lh2_monitor.hardware.caen_operation', return_value={'groups': groups}) as operation:
+            detail = p.probe_caen({'channel_name_contains': 'BLC2'}, 1)
+        operation.assert_called_once_with({'channel_name_contains': 'BLC2'}, 1, inventory=True)
+        self.assertIn('4, 5, 6, 7', detail)
 
     def test_usb_only_lists_sudo_policy_and_does_not_run_uhubctl(self):
         command = p.usb_read_only_command({
@@ -186,6 +194,16 @@ class PreflightTests(unittest.TestCase):
                 redirect_stdout(StringIO()) as output:
             self.assertEqual(p.main(["--json"]), 1)
         self.assertEqual(json.loads(output.getvalue())["exit_code"], 1)
+
+    def test_cli_checks_equipment_by_default(self):
+        with patch.object(p, "collect_checks", return_value=[]) as collect, redirect_stdout(StringIO()):
+            self.assertEqual(p.main([]), 0)
+        self.assertTrue(collect.call_args.kwargs["devices"])
+
+    def test_cli_local_option_skips_equipment(self):
+        with patch.object(p, "collect_checks", return_value=[]) as collect, redirect_stdout(StringIO()):
+            self.assertEqual(p.main(["--local"]), 0)
+        self.assertFalse(collect.call_args.kwargs["devices"])
 
     def test_invalid_timeout_is_rejected(self):
         for value in ("0", "-1", "nan", "inf"):

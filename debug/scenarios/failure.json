@@ -3,7 +3,7 @@
   "responses": {
     "hv12.1": ["timeout", "timeout", "timeout"],
     "massflow_pair": ["CRITICAL: outlet closed, inlet failed after three attempts"],
-    "chamber.0": ["error", "ok"]
+    "chamber.slot4": ["error", "ok"]
   },
   "triggers": [{"at": 100, "name": "skip"}]
 }
