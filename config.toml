@@ -17,26 +17,30 @@ skip = "/tmp/skip.now"
 cancel = "/tmp/cancel.now"
 extend = "/tmp/extend.now"
 
+# SSH alias HV1. Live API labels: 1 BAC, 2 KVC-1, 3 KVC-2; no port 0.
 [targets.hv12]
-name = "HV controller .12"
+name = "HV1 BAC/KVC"
 kind = "hv"
 host = "192.168.20.12"
 port = 8000
-ports = [0, 1, 2, 3]
+ports = [1, 2, 3]
 
+# SSH alias HV2. 0 HTOF Up, 1 HTOF Down, 2 HTOF High, 3 T1.
 [targets.hv13]
-name = "HV controller .13"
+name = "HV2 HTOF/T1"
 kind = "hv"
 host = "192.168.20.13"
 port = 8000
 ports = [0, 1, 2, 3]
 
-[targets.hv91]
-name = "HV controller .91"
+# These supplies are controlled by HV3 on monitor2, not monitor3 (.91).
+# Only 0 T2 and 2 BH2; leave 1 SCH and the separate HV4 API (:8001) untouched here.
+[targets.hv90]
+name = "T2/BH2 via monitor2 HV3"
 kind = "hv"
-host = "192.168.20.91"
+host = "192.168.20.90"
 port = 8000
-ports = [0, 1, 2, 3]
+ports = [0, 2]
 
 [targets.flow_out]
 name = "Outlet mass-flow valve"
@@ -92,7 +96,7 @@ target = "hv12"
 [[sequence]]
 target = "hv13"
 [[sequence]]
-target = "hv91"
+target = "hv90"
 [[sequence]]
 kind = "massflow_pair"
 outlet = "flow_out"

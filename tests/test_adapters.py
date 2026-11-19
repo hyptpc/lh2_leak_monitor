@@ -256,7 +256,7 @@ class AdapterTests(unittest.TestCase):
     def test_plan_display_does_not_touch_equipment(self):
         with redirect_stdout(StringIO()) as output:
             self.assertEqual(monitor.main(['--show-plan']), 0)
-        self.assertIn('192.168.20.91', output.getvalue())
+        self.assertIn('192.168.20.90', output.getvalue())
         self.assertIn('60 minutes', output.getvalue())
 
     def test_all_documented_scenarios_run_under_the_offline_guard(self):

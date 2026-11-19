@@ -32,14 +32,24 @@ class EngineTests(unittest.TestCase):
         actions = self.config.actions
         self.assertEqual(actions[-1].id, 'kikusui42')
         self.assertEqual(self.config.wait_seconds, 3600)
-        self.assertEqual([a.id for a in actions[:12]],
-                         [f'hv{host}.{port}' for host in (12, 13, 91) for port in range(4)])
-        self.assertEqual([a.id for a in actions[12:16]],
+        self.assertEqual([a.id for a in actions[:9]],
+                         [f'hv12.{port}' for port in (1, 2, 3)]
+                         + [f'hv13.{port}' for port in range(4)]
+                         + ['hv90.0', 'hv90.2'])
+        self.assertEqual([a.id for a in actions[9:13]],
                          ['massflow_pair', 'kikusui45', 'chamber', 'wait'])
-        self.assertEqual([a.id for a in actions[16:-1]],
+        self.assertEqual([a.id for a in actions[13:-1]],
                          [f'usb{host}.{port}' for host in (12, 13) for port in range(1, 5)])
         self.assertFalse(any('T0' in a.name for a in actions))
         self.assertFalse((ROOT / 'shutdown_caenhv1_T0.py').exists())
+
+    def test_requested_hv_targets_exclude_sch_hv4_and_obsolete_monitor3(self):
+        hv = [a for a in self.config.actions if a.kind == 'hv']
+        monitor2 = [a for a in hv if a.parameters['host'] == '192.168.20.90']
+        self.assertEqual([a.parameters['target_port'] for a in monitor2], [0, 2])
+        self.assertTrue(all(a.parameters['port'] == 8000 for a in monitor2))
+        self.assertFalse(any(a.parameters['host'] == '192.168.20.91' for a in hv))
+        self.assertFalse(any(a.id == 'hv12.0' for a in hv))
 
     def test_normal_transition_runs_once_and_exits(self):
         self.assertEqual(self.engine().monitor(status_reader(['0', '1']), lambda: 'wait'), 0)
@@ -81,10 +91,10 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(next(values), '0')
 
     def test_failure_retries_three_times_and_continues_to_other_targets(self):
-        self.executor = VirtualExecutor(self.clock, {'hv12.0': ['error'] * 3})
+        self.executor = VirtualExecutor(self.clock, {'hv12.1': ['error'] * 3})
         outcome = self.engine().run_sequence()
         self.assertEqual(outcome.exit_code, 1)
-        self.assertEqual(self.ids()[:4], ['hv12.0', 'hv12.0', 'hv12.0', 'hv12.1'])
+        self.assertEqual(self.ids()[:4], ['hv12.1', 'hv12.1', 'hv12.1', 'hv12.2'])
         self.assertEqual(self.executor.calls[1][0], 2)
         self.assertEqual(self.executor.calls[2][0], 4)
         self.assertEqual(self.ids()[-1], 'kikusui42')
@@ -128,7 +138,7 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(self.clock.now, 100)
 
     def test_cancel_after_errors_does_not_hide_preceding_failures(self):
-        self.executor = VirtualExecutor(self.clock, {'hv12.0': ['error'] * 3})
+        self.executor = VirtualExecutor(self.clock, {'hv12.1': ['error'] * 3})
         self.triggers.events = [{'at': 20, 'name': 'cancel'}]
         outcome = self.engine().run_sequence()
         self.assertTrue(outcome.canceled)
@@ -160,7 +170,7 @@ class EngineTests(unittest.TestCase):
     def test_cancel_is_not_consumed_after_wait(self):
         self.executor = VirtualExecutor(self.clock, duration_seconds=1)
         self.triggers.events = [{'at': 3620, 'name': 'cancel'}]
-        # Pre-wait: 12 HV + pair + Kikusui + inventory + two CAEN channels = 17s.
+        # Pre-wait: 9 HV + pair + Kikusui + inventory + two CAEN channels = 14s.
         outcome = self.engine().run_sequence()
         self.assertFalse(outcome.canceled)
         self.assertEqual(self.ids()[-1], 'kikusui42')
