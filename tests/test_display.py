@@ -59,12 +59,44 @@ class DisplayTests(unittest.TestCase):
         self.assertIn('INFO HEARTBEAT', self.output.getvalue())
         self.assertNotIn('\033', self.output.getvalue())
 
-    def test_recent_events_remain_visible_and_escape_characters_are_sanitized(self):
+    def test_event_history_is_not_shown_but_current_errors_are_visible(self):
         display = self.display(True)
-        display.emit(logging.LogRecord('test', logging.WARNING, '', 0, 'Failure \033[31m', (), None))
-        self.assertIn('Recent events:', self.output.getvalue())
+        display.emit(logging.LogRecord('test', logging.INFO, '', 0, 'old event noise', (), None))
+        self.assertNotIn('Recent events', self.output.getvalue())
+        self.assertNotIn('old event noise', self.output.getvalue())
+        display.emit(logging.LogRecord('test', logging.ERROR, '', 0, 'Failure \033[31m', (), None))
         self.assertIn('Failure', self.output.getvalue())
         self.assertNotIn('Failure \033', self.output.getvalue())
+
+    def test_large_normal_banner_only_for_valid_zero_in_armed_state(self):
+        display = self.display(True)
+        display.update(phase='ARMED', alert='0', input_error=None)
+        self.assertIn('NORMAL / MONITORING', self.output.getvalue())
+        self.assertIn('OOOOO', self.output.getvalue())
+        for phase, alert in [('INPUT_ERROR', None), ('WAITING_FOR_ZERO', '1'), ('STOPPED', '0'), ('WAIT', '1')]:
+            self.output.seek(0)
+            self.output.truncate()
+            display.update(phase=phase, alert=alert)
+            self.assertNotIn('NORMAL / MONITORING', self.output.getvalue())
+
+    def test_wait_displays_real_config_commands_and_grace_only_cancel(self):
+        display = self.display(True)
+        controls = {'extend': '/tmp/test-extend', 'skip': '/tmp/test-skip', 'cancel': '/tmp/test-cancel'}
+        with patch('lh2_monitor.display.shutil.get_terminal_size', return_value=os.terminal_size((50, 24))):
+            display.update(phase='WAIT', alert='1', controls=controls, wait_minutes=60, skip_delay=5, remaining=120)
+        text = self.output.getvalue()
+        for path in controls.values():
+            self.assertIn('touch ' + path, text)
+        self.assertIn('restart full 60-min', text)
+        self.assertIn('final power-off in 5s', text)
+        self.assertIn('Cancel: stop remaining steps', text)
+        self.assertLessEqual(len(text.splitlines()), 24)
+        self.output.seek(0)
+        self.output.truncate()
+        display.update(phase='SKIP_GRACE', remaining=4)
+        self.assertIn('touch /tmp/test-cancel', self.output.getvalue())
+        self.assertNotIn('touch /tmp/test-extend', self.output.getvalue())
+        self.assertNotIn('touch /tmp/test-skip', self.output.getvalue())
 
     def test_no_color_disables_color_without_disabling_refresh(self):
         with patch.dict(os.environ, {'NO_COLOR': ''}):

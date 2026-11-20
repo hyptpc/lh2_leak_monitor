@@ -46,7 +46,8 @@ systemd for a monitoring run; the shared lock prevents simultaneous monitors.
 Foreground startup (`/home/sks/.venv/bin/python app/monitor.py`) automatically shows
 an updating terminal dashboard: local time/timezone, uptime, PID, monitoring
 phase, current and last valid Alert_H2leak, last input-read time, active action,
-wait countdown and eight recent log lines. Normal monitoring and wait refresh
+wait countdown and a prominent green OK / NORMAL banner when armed with Alert=0.
+Recent-event history is omitted from the terminal dashboard; events remain in logs. Normal monitoring and wait refresh
 at the configured polling interval (currently one second). No venv activation
 is required. `Ctrl+C` stops monitoring; it does not restore equipment power.
 
@@ -66,6 +67,25 @@ applicable. They do not query equipment or send Discord messages.
 # Observe service logs without starting the service:
 journalctl -u lh2_monitor.service -f -n 30
 ```
+
+### Wait-stage controls
+
+During WAIT the dashboard displays the actual configured command paths:
+
+| Command (operator shell, no sudo) | Effect |
+| --- | --- |
+| `touch /tmp/extend.now` | Restart the full 60-minute wait from now |
+| `touch /tmp/skip.now` | Proceed to final power-off after the 5-second grace period |
+| `touch /tmp/cancel.now` | Cancel remaining steps and exit; previous equipment actions stay in effect |
+
+No request means final power-off at the deadline. During SKIP GRACE only the
+cancel command is displayed, because skip/extend are not accepted there.
+Use these commands only during the wait, not in advance during normal monitoring.
+Normally the monitor deletes an accepted request file immediately; startup and
+normal sequence completion also consume old requests. It does not wait for OS
+/tmp cleanup. A trusted file that cannot be removed (for example root-owned in
+sticky /tmp) can remain; it is honored once per identity/change timestamp, with
+a warning recorded in the log. Create requests as sks without sudo.
 
 ## Configuration
 

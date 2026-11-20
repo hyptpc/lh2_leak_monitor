@@ -114,7 +114,9 @@ class Engine:
         next_progress = self.clock.monotonic()
         while True:
             self.report(phase='WAIT', action='Waiting before final power-off',
-                        remaining=max(0, deadline - self.clock.monotonic()))
+                        remaining=max(0, deadline - self.clock.monotonic()),
+                        controls={name: str(path) for name, path in self.config.triggers.items()},
+                        wait_minutes=self.config.wait_seconds / 60, skip_delay=self.config.skip_delay_seconds)
             # Cancel has priority, including at the deadline boundary.
             if self.triggers.consume('cancel'):
                 self.log('WARNING', 'CANCELED by operator; final power-off will not run')

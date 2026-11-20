@@ -1,11 +1,11 @@
 """Terminal dashboard and bounded heartbeat output; never performs equipment I/O."""
 
-from collections import deque
 from datetime import datetime
 import logging
 import math
 import os
 import shutil
+import shlex
 import threading
 import time
 
@@ -42,7 +42,7 @@ class MonitorDisplay(logging.Handler):
         self.state = {'phase': 'STARTING', 'alert': None, 'last_valid': None,
                       'action': '', 'remaining': None, 'input_error': None}
         self.sample_time = 'not yet read'
-        self.events = deque(maxlen=8)
+        self.problem = None
         self._next_heartbeat = self.started
         self._previous_key = None
         self._render_lock = threading.RLock()
@@ -75,27 +75,67 @@ class MonitorDisplay(logging.Handler):
         width = max(20, shutil.get_terminal_size((100, 24)).columns - 1)
         s = self.state
         now = self.wall_now().strftime('%Y-%m-%d %H:%M:%S %Z')
-        phase = PHASES.get(s['phase'], s['phase'])
+        normal = s['phase'] == 'ARMED' and s['alert'] == '0' and not s['input_error'] and not self.problem
+        if normal:
+            banner = [
+                '   OOOOO    KK   KK',
+                '  OO   OO   KK KK',
+                '  OO   OO   KKK',
+                '  OO   OO   KK KK',
+                '   OOOOO    KK   KK',
+                '  NORMAL / MONITORING',
+            ]
+            code = '1;32'
+        else:
+            title = {'WAIT': 'SHUTDOWN WAIT', 'SKIP_GRACE': 'FINAL POWER-OFF SOON',
+                     'INPUT_ERROR': 'INPUT ERROR', 'SHUTDOWN': 'SHUTDOWN IN PROGRESS',
+                     'WAITING_FOR_ZERO': 'WAITING FOR ALERT = 0', 'STARTUP_ALERT': 'ALERT ALREADY 1',
+                     'STARTING': 'STARTING', 'STOPPED': 'STOPPED'}.get(s['phase'], 'CHECK STATUS')
+            if self.problem:
+                title = 'COMMAND / MONITOR ERROR' if s['phase'] != 'STOPPED' else 'STOPPED WITH ERROR'
+            border = '=' * min(width, max(24, len(title) + 4))
+            banner = [border, title, border]
+            code = '1;31' if s['phase'] in {'INPUT_ERROR', 'SHUTDOWN', 'SKIP_GRACE'} or self.problem else '1;33'
+        lines = [f'LH2 MONITOR | LIVE | PID {os.getpid()}',
+                 f'Updated: {now}', f'Uptime: {duration(self.monotonic() - self.started)}', '']
+        start_banner = len(lines)
+        lines.extend(banner)
+        end_banner = len(lines)
+        lines.append('')
         alert = s['alert'] if s['alert'] is not None else 'UNKNOWN'
-        lines = [
-            f'LH2 LEAK MONITOR | LIVE | PID {os.getpid()}',
-            f"Updated: {now}  |  Uptime: {duration(self.monotonic() - self.started)}",
-            f"State: {phase}",
-            f"Alert_H2leak: {alert}  |  Last valid: {s['last_valid'] if s['last_valid'] is not None else '-'}",
-            f"Last input read: {self.sample_time}",
-            f"Current action: {s['action'] or '-'}",
-            f"Remaining: {duration(s['remaining']) if s['remaining'] is not None else '-'}",
-        ]
+        if s['phase'] in {'SHUTDOWN', 'WAIT', 'SKIP_GRACE'}:
+            lines.append('Alert latched; input is NOT re-read.')
+        else:
+            lines.append(f'Alert_H2leak: {alert}')
+            if s['input_error']:
+                lines.append(f"Last valid: {s['last_valid'] if s['last_valid'] is not None else '-'}")
+            lines.append(f'Last input read: {self.sample_time}')
         if s['input_error']:
             lines.append(f"Input error: {s['input_error']}")
-        if s['phase'] in {'SHUTDOWN', 'WAIT', 'SKIP_GRACE'}:
-            lines.append('Alert is latched; input is NOT re-read during the shutdown sequence.')
-        lines += ['Ctrl+C: stop monitor (does not restore equipment power)', '', 'Recent events:']
-        lines += list(self.events)
+        if s['remaining'] is not None:
+            lines.append(f"Remaining: {duration(s['remaining'])}")
+        controls = s.get('controls', {})
+        if s['phase'] == 'WAIT':
+            lines += ['', 'Run in right pane (no sudo):']
+            for name, effect in [('extend', f"Extend: restart full {s.get('wait_minutes', 60):g}-min wait"),
+                                 ('skip', f"Skip: final power-off in {s.get('skip_delay', 5):g}s"),
+                                 ('cancel', 'Cancel: stop remaining steps')]:
+                if name in controls:
+                    lines += [effect, '  touch ' + shlex.quote(controls[name])]
+            lines.append('No action -> final power-off at zero.')
+        elif s['phase'] == 'SKIP_GRACE':
+            lines.append('Cancel remaining steps (right pane):')
+            if 'cancel' in controls:
+                lines.append('  touch ' + shlex.quote(controls['cancel']))
+        elif s['action']:
+            lines.append(f"Current action: {s['action']}")
+        if self.problem:
+            lines.append('Error: ' + self.problem)
+        lines += ['', 'Ctrl+C: stop monitor; no power restored.']
         lines = [clean(line)[:width] for line in lines]
         if self.color:
-            code = '31' if s['phase'] in {'INPUT_ERROR', 'SHUTDOWN', 'SKIP_GRACE'} else '32'
-            lines[2] = f'\033[{code}m{lines[2]}\033[0m'
+            for index in range(start_banner, end_banner):
+                lines[index] = f'\033[{code}m{lines[index]}\033[0m'
         self.stream.write('\033[H\033[2J' + '\n'.join(lines) + '\n')
         self.stream.flush()
 
@@ -104,7 +144,8 @@ class MonitorDisplay(logging.Handler):
             with self._render_lock:
                 text = self.format(record)
                 if self.terminal:
-                    self.events.extend(text.splitlines())
+                    if record.levelno >= logging.ERROR:
+                        self.problem = clean(record.getMessage())
                     self.render()
                 else:
                     self.stream.write(text + '\n')
