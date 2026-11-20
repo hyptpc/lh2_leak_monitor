@@ -35,8 +35,8 @@ class DisplayTests(unittest.TestCase):
         text = self.output.getvalue()
         self.assertIn('12:00:02', text)
         self.assertIn('Uptime: 00:00:02', text)
-        self.assertIn('Remaining: 00:01:05', text)
-        self.assertIn('Alert_H2leak: 0', text)
+        self.assertIn('Waiting... 00:01:05 remaining', text)
+        self.assertIn('Status (Alert_H2leak): 0 (Normal)', text)
         self.assertIn('input is NOT re-read', text)
         self.assertEqual(text.count('\033[H\033[2J'), 2)
 
@@ -68,16 +68,32 @@ class DisplayTests(unittest.TestCase):
         self.assertIn('Failure', self.output.getvalue())
         self.assertNotIn('Failure \033', self.output.getvalue())
 
-    def test_large_normal_banner_only_for_valid_zero_in_armed_state(self):
+    def test_historical_normal_label_only_for_valid_zero_in_armed_state(self):
         display = self.display(True)
         display.update(phase='ARMED', alert='0', input_error=None)
-        self.assertIn('NORMAL / MONITORING', self.output.getvalue())
-        self.assertIn('OOOOO', self.output.getvalue())
+        self.assertIn('0 (Normal)', self.output.getvalue())
+        self.assertNotIn('OOOOO', self.output.getvalue())
         for phase, alert in [('INPUT_ERROR', None), ('WAITING_FOR_ZERO', '1'), ('STOPPED', '0'), ('WAIT', '1')]:
             self.output.seek(0)
             self.output.truncate()
             display.update(phase=phase, alert=alert)
-            self.assertNotIn('NORMAL / MONITORING', self.output.getvalue())
+            self.assertNotIn('0 (Normal)', self.output.getvalue())
+
+    def test_historical_fields_and_scheduled_shutdown_time(self):
+        display = self.display(True)
+        path = '/home/sks/share/monitor-tmp/H2tgtPresentStatus.txt'
+        display.update(phase='ARMED', alert='0', monitoring_file=path, sample=True)
+        self.assertIn('LH2 MONITOR', self.output.getvalue())
+        self.assertIn('Monitoring file:', self.output.getvalue())
+        self.assertIn(path, self.output.getvalue())
+        self.assertIn('Last check: 2026-11-20 12:00:00', self.output.getvalue())
+        self.output.seek(0)
+        self.output.truncate()
+        display.update(phase='WAIT', remaining=3600)
+        self.assertIn('WAITING FOR FINAL SHUTDOWN', self.output.getvalue())
+        self.assertIn('Final shutdown scheduled for:', self.output.getvalue())
+        self.assertIn('2026-11-20 13:00:00', self.output.getvalue())
+        self.assertNotIn('Recent events', self.output.getvalue())
 
     def test_wait_displays_real_config_commands_and_grace_only_cancel(self):
         display = self.display(True)

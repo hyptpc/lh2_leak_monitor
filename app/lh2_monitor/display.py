@@ -1,12 +1,13 @@
 """Terminal dashboard and bounded heartbeat output; never performs equipment I/O."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import math
 import os
 import shutil
 import shlex
 import threading
+import textwrap
 import time
 
 
@@ -71,72 +72,79 @@ class MonitorDisplay(logging.Handler):
             return message
 
     def render(self):
-        # Called by the control loop, never by a timer that could mask a stuck loop.
+        # Match the compact Nov 2025 interface, without ASCII art or event history.
         width = max(20, shutil.get_terminal_size((100, 24)).columns - 1)
         s = self.state
-        now = self.wall_now().strftime('%Y-%m-%d %H:%M:%S %Z')
-        normal = s['phase'] == 'ARMED' and s['alert'] == '0' and not s['input_error'] and not self.problem
-        if normal:
-            banner = [
-                '   OOOOO    KK   KK',
-                '  OO   OO   KK KK',
-                '  OO   OO   KKK',
-                '  OO   OO   KK KK',
-                '   OOOOO    KK   KK',
-                '  NORMAL / MONITORING',
-            ]
-            code = '1;32'
-        else:
-            title = {'WAIT': 'SHUTDOWN WAIT', 'SKIP_GRACE': 'FINAL POWER-OFF SOON',
-                     'INPUT_ERROR': 'INPUT ERROR', 'SHUTDOWN': 'SHUTDOWN IN PROGRESS',
-                     'WAITING_FOR_ZERO': 'WAITING FOR ALERT = 0', 'STARTUP_ALERT': 'ALERT ALREADY 1',
-                     'STARTING': 'STARTING', 'STOPPED': 'STOPPED'}.get(s['phase'], 'CHECK STATUS')
-            if self.problem:
-                title = 'COMMAND / MONITOR ERROR' if s['phase'] != 'STOPPED' else 'STOPPED WITH ERROR'
-            border = '=' * min(width, max(24, len(title) + 4))
-            banner = [border, title, border]
-            code = '1;31' if s['phase'] in {'INPUT_ERROR', 'SHUTDOWN', 'SKIP_GRACE'} or self.problem else '1;33'
-        lines = [f'LH2 MONITOR | LIVE | PID {os.getpid()}',
-                 f'Updated: {now}', f'Uptime: {duration(self.monotonic() - self.started)}', '']
-        start_banner = len(lines)
-        lines.extend(banner)
-        end_banner = len(lines)
-        lines.append('')
+        now = self.wall_now()
+        stamp = now.strftime('%Y-%m-%d %H:%M:%S %Z')
+        phase = s['phase']
+        normal = phase == 'ARMED' and s['alert'] == '0' and not s['input_error'] and not self.problem
         alert = s['alert'] if s['alert'] is not None else 'UNKNOWN'
-        if s['phase'] in {'SHUTDOWN', 'WAIT', 'SKIP_GRACE'}:
-            lines.append('Alert latched; input is NOT re-read.')
-        else:
-            lines.append(f'Alert_H2leak: {alert}')
-            if s['input_error']:
-                lines.append(f"Last valid: {s['last_valid'] if s['last_valid'] is not None else '-'}")
-            lines.append(f'Last input read: {self.sample_time}')
-        if s['input_error']:
-            lines.append(f"Input error: {s['input_error']}")
-        if s['remaining'] is not None:
-            lines.append(f"Remaining: {duration(s['remaining'])}")
-        controls = s.get('controls', {})
-        if s['phase'] == 'WAIT':
-            lines += ['', 'Run in right pane (no sudo):']
-            for name, effect in [('extend', f"Extend: restart full {s.get('wait_minutes', 60):g}-min wait"),
-                                 ('skip', f"Skip: final power-off in {s.get('skip_delay', 5):g}s"),
-                                 ('cancel', 'Cancel: stop remaining steps')]:
+        highlighted = {}
+        if phase == 'WAIT':
+            lines = ['WAITING FOR FINAL SHUTDOWN', '']
+            highlighted[0] = '1;36'
+            if s['remaining'] is not None:
+                scheduled = (now + timedelta(seconds=s['remaining'])).strftime('%Y-%m-%d %H:%M:%S %Z')
+                lines += ['Final shutdown scheduled for:', scheduled]
+            lines += [f'Last check: {stamp}', f'Uptime: {duration(self.monotonic() - self.started)}', '']
+            highlighted[len(lines)] = '1;33'
+            lines.append(f"Waiting... {duration(s['remaining'] or 0)} remaining")
+            lines += ['', 'Trigger commands (right pane; no sudo):']
+            controls = s.get('controls', {})
+            for name, effect in [('skip', f"Skip: final power-off in {s.get('skip_delay', 5):g}s"),
+                                 ('cancel', 'Cancel: stop remaining steps'),
+                                 ('extend', f"Extend: restart full {s.get('wait_minutes', 60):g}-min wait")]:
                 if name in controls:
                     lines += [effect, '  touch ' + shlex.quote(controls[name])]
-            lines.append('No action -> final power-off at zero.')
-        elif s['phase'] == 'SKIP_GRACE':
-            lines.append('Cancel remaining steps (right pane):')
-            if 'cancel' in controls:
-                lines.append('  touch ' + shlex.quote(controls['cancel']))
-        elif s['action']:
-            lines.append(f"Current action: {s['action']}")
+            lines += ['', 'No action -> final power-off at zero.', 'Alert is latched; input is NOT re-read.']
+        else:
+            lines = ['LH2 MONITOR', '']
+            highlighted[0] = '1;35'
+            if normal:
+                highlighted[2] = '1;32'
+                lines.append('Status (Alert_H2leak): 0 (Normal)')
+            else:
+                text = {'STARTING': 'Starting monitor', 'WAITING_FOR_ZERO': 'ALERT DETECTED - waiting for 0',
+                        'STARTUP_ALERT': 'ALERT DETECTED - startup choice', 'INPUT_ERROR': 'INPUT ERROR',
+                        'SHUTDOWN': 'SHUTDOWN IN PROGRESS', 'SKIP_GRACE': 'FINAL POWER-OFF SOON',
+                        'STOPPED': 'Monitoring stopped.'}.get(phase, PHASES.get(phase, phase))
+                if self.problem:
+                    text = 'STOPPED WITH ERROR' if phase == 'STOPPED' else 'COMMAND / MONITOR ERROR'
+                highlighted[2] = '1;31' if self.problem or phase in {'INPUT_ERROR', 'SHUTDOWN', 'SKIP_GRACE'} else '1;33'
+                lines.append(text)
+                lines.append(f'Status (Alert_H2leak): {alert}')
+            if phase not in {'SHUTDOWN', 'SKIP_GRACE'}:
+                if s.get('monitoring_file'):
+                    lines += ['Monitoring file:', s['monitoring_file']]
+                lines.append(f'Last check: {stamp}')
+                lines.append(f'Last input read: {self.sample_time}')
+            else:
+                lines += [f'Last check: {stamp}', 'Alert is latched; input is NOT re-read.']
+            lines.append(f'Uptime: {duration(self.monotonic() - self.started)}')
+            if s['input_error']:
+                lines += [f"Last valid: {s['last_valid'] if s['last_valid'] is not None else '-'}",
+                          f"Input error: {s['input_error']}"]
+            if s['remaining'] is not None:
+                lines.append(f"Remaining: {duration(s['remaining'])}")
+            if phase == 'SKIP_GRACE' and 'cancel' in s.get('controls', {}):
+                lines += ['', 'Cancel remaining steps (right pane):',
+                          '  touch ' + shlex.quote(s['controls']['cancel'])]
+            elif s['action']:
+                lines.append(f"Current action: {s['action']}")
+            if phase != 'STOPPED':
+                lines += ['', '(Monitoring... Ctrl+C to stop)']
         if self.problem:
             lines.append('Error: ' + self.problem)
-        lines += ['', 'Ctrl+C: stop monitor; no power restored.']
-        lines = [clean(line)[:width] for line in lines]
-        if self.color:
-            for index in range(start_banner, end_banner):
-                lines[index] = f'\033[{code}m{lines[index]}\033[0m'
-        self.stream.write('\033[H\033[2J' + '\n'.join(lines) + '\n')
+        # Wrap long paths/details instead of silently clipping the operator commands.
+        rendered = []
+        for index, line in enumerate(lines):
+            chunks = textwrap.wrap(clean(line), width=width, replace_whitespace=False,
+                                   drop_whitespace=False) or ['']
+            if self.color and index in highlighted:
+                chunks = [f'\033[{highlighted[index]}m{chunk}\033[0m' for chunk in chunks]
+            rendered.extend(chunks)
+        self.stream.write('\033[H\033[2J' + '\n'.join(rendered) + '\n')
         self.stream.flush()
 
     def emit(self, record):

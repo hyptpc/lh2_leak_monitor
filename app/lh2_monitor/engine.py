@@ -212,5 +212,6 @@ class Engine:
                 last = status.value
             self.report(phase='INPUT_ERROR' if last_error else ('ARMED' if last == '0' else 'WAITING_FOR_ZERO'),
                         alert=status.value if not last_error else None, last_valid=last,
-                        input_error=last_error, sample=True, action='', remaining=None)
+                        input_error=last_error, sample=True, action='', remaining=None,
+                        monitoring_file=str(self.config.status_file))
             self.clock.sleep(self.config.poll_seconds)

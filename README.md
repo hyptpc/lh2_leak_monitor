@@ -56,7 +56,7 @@ when you intend to stop the previous monitoring run.
 Foreground startup (`/home/sks/.venv/bin/python app/monitor.py`) automatically shows
 an updating terminal dashboard: local time/timezone, uptime, PID, monitoring
 phase, current and last valid Alert_H2leak, last input-read time, active action,
-wait countdown and a prominent green OK / NORMAL banner when armed with Alert=0.
+wait countdown and the compact historical green `Status (Alert_H2leak): 0 (Normal)` label.
 Recent-event history is omitted from the terminal dashboard; events remain in logs. Normal monitoring and wait refresh
 at the configured polling interval (currently one second). No venv activation
 is required. `Ctrl+C` stops monitoring; it does not restore equipment power.
@@ -243,3 +243,8 @@ excluded from Git. The alert input still depends on the shared mount.
 Preflight uses green PASS, yellow WARN, red FAIL and cyan SKIP on terminals.
 Redirected output and JSON remain plain; use `--color always` / `--color never`
 to override text output, or set `NO_COLOR` to disable automatic color.
+
+The terminal layout follows historical commit `07da6d3` (2025-11-09): a colored
+status line, monitored file, last-check time, and a refreshed wait countdown
+with scheduled shutdown time. Only the presentation was restored; current
+shutdown targets, timeout behavior, startup policy and one-hour wait remain.
