@@ -291,3 +291,9 @@ no automatic reopen/rollback.
 For visual/logic experiments without real devices, use the explicit --simulate
 mode described in the [project README](../../README.md#offline-testing). Unlike the
 default equipment preflight, simulation contacts no equipment at all.
+
+## Runtime display
+
+Foreground operation uses an updating dashboard; service/redirected output uses
+plain timestamped heartbeat logs. See [Live status display](../../README.md#live-status-display)
+for fields, timing and how to follow the journal without starting monitoring.

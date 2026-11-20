@@ -223,12 +223,20 @@ def make_logger(path):
     logger.setLevel(logging.INFO)
     logger.handlers.clear()
     formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-    for handler in (logging.StreamHandler(sys.stdout), logging.FileHandler(path)):
+    from .display import MonitorDisplay
+    display = MonitorDisplay(sys.stdout)
+    for handler in (display, logging.FileHandler(path)):
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
     def log(level, message):
         logger.log(getattr(logging, level), message)
+    def progress(**state):
+        message = display.update(**state)
+        if message is not None:
+            logger.info(message)
+
+    log.progress = progress
     return log
 
 

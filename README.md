@@ -27,6 +27,32 @@ app/monitor.py CLI also supports an interactive exit/wait choice.
 Once triggered, recovery to 0 does not cancel the sequence. The program exits
 after completion or operator cancellation; restart it to monitor again.
 
+## Live status display
+
+Foreground startup (`/home/sks/.venv/bin/python monitor.py`) automatically shows
+an updating terminal dashboard: local time/timezone, uptime, PID, monitoring
+phase, current and last valid Alert_H2leak, last input-read time, active action,
+wait countdown and eight recent log lines. Normal monitoring and wait refresh
+at the configured polling interval (currently one second). No venv activation
+is required. `Ctrl+C` stops monitoring; it does not restore equipment power.
+
+Input-read errors display UNKNOWN separately from the last valid value. After
+an alert is latched, the dashboard says that input is no longer polled. The
+screen updates only when the control loop progresses: during a blocking read
+or equipment attempt, the displayed update time stays at its last update.
+An independently ticking clock would not prove the control loop is healthy.
+
+With systemd or redirected stdout, output stays plain text. State changes and
+one heartbeat every 60 seconds while the loop progresses are timestamped in
+`logs/monitor.log` and stdout (the systemd journal for service runs). Heartbeats
+include phase, alert, uptime, last input read, action and wait remaining where
+applicable. They do not query equipment or send Discord messages.
+
+```bash
+# Observe service logs without starting the service:
+journalctl -u lh2_monitor.service -f -n 30
+```
+
 ## Configuration
 
 Edit [config.toml](config/config.toml). Equipment addresses and order are kept here.

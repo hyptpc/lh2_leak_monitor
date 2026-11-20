@@ -33,13 +33,24 @@ class Outcome:
 
 
 class Engine:
-    def __init__(self, config, executor, notifier, clock, triggers, log):
+    def __init__(self, config, executor, notifier, clock, triggers, log, progress=None):
         self.config = config
         self.executor = executor
         self.notifier = notifier
         self.clock = clock
         self.triggers = triggers
         self.log = log
+        self.progress = progress
+        self._display_failed = False
+
+    def report(self, **state):
+        # Presentation must never interrupt the shutdown/control path.
+        if self.progress is not None and not self._display_failed:
+            try:
+                self.progress(**state)
+            except Exception as error:
+                self._display_failed = True
+                self.log('WARNING', f'Live status display unavailable ({type(error).__name__}); continuing')
 
     def execute(self, action):
         # The pair worker owns per-connection / per-valve retries. Never retry the
@@ -47,6 +58,7 @@ class Engine:
         attempts = 1 if action.kind == 'massflow_pair' else self.config.retry.max_attempts
         last_error = ''
         for attempt in range(1, attempts + 1):
+            self.report(phase='SHUTDOWN', action=f'{action.id}: {action.name} ({attempt}/{attempts})', remaining=None)
             self.log('INFO', f'{action.id}: {action.name}; attempt {attempt}/{attempts}')
             try:
                 result = self.executor.run_once(action, self.config.retry)
@@ -101,6 +113,8 @@ class Engine:
                  'cancel/skip/extend accepted only during this wait')
         next_progress = self.clock.monotonic()
         while True:
+            self.report(phase='WAIT', action='Waiting before final power-off',
+                        remaining=max(0, deadline - self.clock.monotonic()))
             # Cancel has priority, including at the deadline boundary.
             if self.triggers.consume('cancel'):
                 self.log('WARNING', 'CANCELED by operator; final power-off will not run')
@@ -110,6 +124,8 @@ class Engine:
                 # This is still part of the wait: allow cancellation during the grace period.
                 deadline = self.clock.monotonic() + self.config.skip_delay_seconds
                 while self.clock.monotonic() < deadline:
+                    self.report(phase='SKIP_GRACE', action='Final power-off after grace period',
+                                remaining=max(0, deadline - self.clock.monotonic()))
                     if self.triggers.consume('cancel'):
                         self.log('WARNING', 'CANCELED during skip grace period')
                         return False
@@ -131,6 +147,7 @@ class Engine:
             self.clock.sleep(min(self.config.poll_seconds, remaining))
 
     def run_sequence(self):
+        self.report(phase='SHUTDOWN', alert='1', action='Sequence latched; input is no longer polled', remaining=None)
         self.log('WARNING', 'ALERT 0 -> 1: sequence latched; recovery does not cancel it')
         self.notify('LH2 alert 0 -> 1: shutdown sequence started.')
         errors = []
@@ -180,11 +197,18 @@ class Engine:
                     self.log('INFO', f'Initial Alert_H2leak = {status.value}')
                     if status.value == '1':
                         self.log('WARNING', 'Alert is ALREADY 1. No shutdown is triggered at startup.')
+                        self.report(phase='STARTUP_ALERT', alert='1', last_valid='1',
+                                    sample=True, action='Waiting for startup choice', remaining=None)
                         if startup_choice() == 'exit':
                             self.log('WARNING', 'Operator chose to exit without equipment commands')
                             return 0
                         self.log('WARNING', 'Waiting for 0, then a new 0 -> 1 transition')
                 elif last == '0' and status.value == '1':
+                    self.report(phase='SHUTDOWN', alert='1', last_valid='1',
+                                sample=True, input_error=None)
                     return self.run_sequence().exit_code
                 last = status.value
+            self.report(phase='INPUT_ERROR' if last_error else ('ARMED' if last == '0' else 'WAITING_FOR_ZERO'),
+                        alert=status.value if not last_error else None, last_valid=last,
+                        input_error=last_error, sample=True, action='', remaining=None)
             self.clock.sleep(self.config.poll_seconds)

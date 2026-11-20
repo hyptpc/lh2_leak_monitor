@@ -49,6 +49,7 @@ def run_live(config, startup_policy):
 
     log = make_logger(config.log_file)
     notifier = None
+    progress = getattr(log, 'progress', None)
     try:
         with MonitorLock(config.lock_file):
             log('WARNING', 'LIVE MODE: equipment commands and configured notifications are enabled')
@@ -63,7 +64,7 @@ def run_live(config, startup_policy):
                 caen_credentials()
             notifier = DiscordNotifier(os.environ.get('DISCORD_WEBHOOK_URL'),
                                        config.retry.attempt_timeout_seconds, log)
-            engine = Engine(config, ProcessExecutor(log), notifier, time, triggers, log)
+            engine = Engine(config, ProcessExecutor(log), notifier, time, triggers, log, progress=progress)
             choose = startup_choice if startup_policy == 'ask' else lambda: startup_policy
             result = engine.monitor(lambda: read_status(config.status_file), choose)
             triggers.clear()
@@ -77,6 +78,11 @@ def run_live(config, startup_policy):
     finally:
         if notifier is not None:
             notifier.finish()
+        if progress is not None:
+            try:
+                progress(phase='STOPPED', action='Monitor process exited', remaining=None)
+            except Exception:
+                pass
 
 
 def main(argv=None):
