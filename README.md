@@ -12,24 +12,38 @@ alert input still depends on the shared mount.
 
 ## Start
 
-Use the equipment host's Python environment:
-
 ```bash
 cd /home/sks/monitor_tools/lh2_leak_monitor
-./daemon/start.sh
+./run.sh
 ```
 
-This is **normal live operation**: equipment commands and configured Discord
-notifications are enabled. This launcher waits for a new 0 → 1 if the alert is
-already 1 at startup; it does not immediately send shutdown commands. The raw
-app/monitor.py CLI also supports an interactive exit/wait choice.
+`run.sh` creates/reconnects to tmux session `lh2-monitor`: LIVE monitoring in
+the left pane, an interactive operator shell in the right pane. If the session
+already exists it only reconnects; it does not launch another monitor. Inside
+tmux it switches clients rather than nesting tmux. Detach with Ctrl+b, then d;
+monitoring continues after detaching or disconnecting SSH. Ctrl+C in the left
+pane stops monitoring. The left pane remains after exit to show the result;
+reconnecting does not restart an exited monitor. There is no automatic restart.
+To start a new run after it exits, close the old session yourself and run again.
+Do not close a session with a live monitor unless you intend to stop monitoring.
 
-Once triggered, recovery to 0 does not cancel the sequence. The program exits
-after completion or operator cancellation; restart it to monitor again.
+An active systemd LH2 service blocks creation of a new tmux monitoring session.
+`./unlock.sh --check` inspects the lock; `./unlock.sh --stop-service` explicitly
+stops that service (sudo password may be required), then verifies lock release.
+Bare `./unlock.sh` asks for confirmation in an interactive terminal. It never
+deletes the lock file or kills a manual monitor: stop a manual monitor using
+Ctrl+C in its own terminal. Lock files are not stale just because they exist;
+flock is released automatically when the holding process exits.
+
+Startup waits for 0 and a fresh 0 -> 1 if the input is already 1. Once triggered,
+recovery to 0 does not cancel the shutdown sequence. Start launches live equipment
+control and configured Discord notifications. `daemon/start.sh` is a separate
+systemd background launch; it does not enable boot startup. Choose tmux or
+systemd for a monitoring run; the shared lock prevents simultaneous monitors.
 
 ## Live status display
 
-Foreground startup (`/home/sks/.venv/bin/python monitor.py`) automatically shows
+Foreground startup (`/home/sks/.venv/bin/python app/monitor.py`) automatically shows
 an updating terminal dashboard: local time/timezone, uptime, PID, monitoring
 phase, current and last valid Alert_H2leak, last input-read time, active action,
 wait countdown and eight recent log lines. Normal monitoring and wait refresh
@@ -168,7 +182,8 @@ To inspect additional logs: `journalctl -u lh2_monitor.service -n 100 --no-pager
 
 ```text
 README.md, *.sh       Guide, preflight checks and plan display
-monitor.py           Link to app/monitor.py (foreground live entry point)
+run.sh               Start/reconnect to the two-pane LH2 tmux session
+unlock.sh            Inspect lock; optionally stop the LH2 service
 .env                 Local credentials (ignored by Git; mode 600)
 app/                 Python entry points, package and compatibility tools
 config/config.toml   Equipment addresses, sequence and timing
@@ -182,8 +197,9 @@ logs/, runtime/      Generated logs and lock files (ignored by Git)
 Use this tool's daemon/ directory for service controls and its service template.
 The only LH2 service template is
 [daemon/units/lh2_monitor.service](daemon/units/lh2_monitor.service).
-The top-level [monitor.py](monitor.py) links to [app/monitor.py](app/monitor.py).
-Run `/home/sks/.venv/bin/python monitor.py` for foreground live monitoring.
+The implementation entry point is [app/monitor.py](app/monitor.py).
+Use `./run.sh` for the tmux interface; the old top-level monitor.py link was removed.
+Run `/home/sks/.venv/bin/python app/monitor.py` for foreground live monitoring.
 Use `--show-plan` or `--simulate` for offline checks. The service keeps using
 app/monitor.py directly; its definition does not change for this link.
 Do not run compatibility tools to test readiness: some directly control equipment.
