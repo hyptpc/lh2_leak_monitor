@@ -32,7 +32,7 @@ class Launchers(unittest.TestCase):
         (self.root / 'runtime/monitor.lock').write_text('')
         for name in ['run.sh', 'unlock.sh']:
             path = self.root / name
-            path.write_text((ROOT / name).read_text().replace('/home/sks/monitor_tools/lh2_leak_monitor', str(self.root)))
+            path.write_text((ROOT / name).read_text().replace('/home/sks/monitor_tools/lh2_leak_monitor', str(self.root)).replace('/home/sks/.venv/bin/python', str(self.bin / 'python')))
             ALLOWED.add(str(path))
         fake = r'''#!/bin/bash
 name=${0##*/}
@@ -53,7 +53,7 @@ case "$name" in
  grep) exit 1;;
 esac
 '''
-        for name in ['tmux', 'systemctl', 'flock', 'sudo', 'lslocks', 'grep']:
+        for name in ['tmux', 'systemctl', 'flock', 'sudo', 'lslocks', 'grep', 'python']:
             path = self.bin / name
             path.write_text(fake)
             path.chmod(0o755)
@@ -69,60 +69,42 @@ esac
         calls = self.root / 'calls'
         return result, calls.read_text() if calls.exists() else ''
 
-    def test_new_session_sets_up_two_panes_before_start_and_attaches(self):
+    def test_simple_detached_launch_has_left_monitor_and_right_shell(self):
         result, calls = self.run_script('run.sh')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn('<split-window> <-h> <-p> <50>', calls)
-        self.assertIn('<remain-on-exit> <on>', calls)
-        self.assertLess(calls.index('<split-window>'), calls.index('<respawn-pane>'))
-        self.assertEqual(calls.count('<respawn-pane>'), 1)
-        self.assertIn('--startup-alert wait', calls)
-        self.assertIn('<attach-session>', calls)
+        self.assertIn('<new-session> <-d>', calls)
+        self.assertIn('<split-window> <-h> <-p> <50> <-t> <%1>', calls)
+        self.assertIn('app/monitor.py --startup-alert wait; exec /bin/bash', calls)
+        self.assertIn('<select-pane> <-t> <%1>', calls)
+        self.assertNotIn('<attach-session>', calls)
+        self.assertNotIn('<switch-client>', calls)
+        self.assertNotIn('<respawn-pane>', calls)
+        self.assertNotIn('systemctl', calls)
         self.assertNotIn('sudo', calls)
 
-    def test_reconnect_does_not_start_monitor(self):
+    def test_existing_session_is_left_untouched(self):
         result, calls = self.run_script('run.sh', FAKE_SESSION_RC='0')
-        self.assertEqual(result.returncode, 0)
-        self.assertIn('<attach-session>', calls)
-        self.assertNotIn('<respawn-pane>', calls)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('already exists', result.stderr)
         self.assertNotIn('<new-session>', calls)
-
-    def test_existing_tmux_client_switches_instead_of_nesting(self):
-        result, calls = self.run_script('run.sh', FAKE_SESSION_RC='0', TMUX='fake')
-        self.assertEqual(result.returncode, 0)
-        self.assertIn('<switch-client>', calls)
+        self.assertNotIn('<split-window>', calls)
         self.assertNotIn('<attach-session>', calls)
 
-    def test_active_service_blocks_new_session_without_stopping_it(self):
-        result, calls = self.run_script('run.sh', FAKE_STATE='active')
-        self.assertEqual(result.returncode, 1)
-        self.assertNotIn('<new-session>', calls)
-        self.assertNotIn('sudo', calls)
-
-    def test_check_busy_lock_does_not_stop_service(self):
-        result, calls = self.run_script('unlock.sh', '--check', FAKE_BUSY='1', FAKE_STATE='active')
-        self.assertEqual(result.returncode, 1)
-        self.assertNotIn('sudo', calls)
-
-    def test_explicit_stop_stops_only_the_lh2_service_and_verifies_release(self):
-        result, calls = self.run_script('unlock.sh', '--stop-service', FAKE_BUSY='1', FAKE_STATE='active')
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn('sudo <systemctl> <stop> <lh2_monitor.service>', calls)
-        self.assertEqual(calls.count('flock '), 2)
-        self.assertIn('Monitor lock is free', result.stdout)
-        self.assertTrue((self.root / 'runtime/monitor.lock').exists())
-
-    def test_manual_monitor_is_not_killed(self):
-        result, calls = self.run_script('unlock.sh', '--stop-service', FAKE_BUSY='1')
-        self.assertEqual(result.returncode, 1)
-        self.assertNotIn('sudo', calls)
-        self.assertIn('manual monitor', result.stderr)
-
-    def test_free_lock_is_not_removed(self):
-        result, calls = self.run_script('unlock.sh', '--check')
+    def test_inside_tmux_still_only_creates_detached_session(self):
+        result, calls = self.run_script('run.sh', TMUX='fake')
         self.assertEqual(result.returncode, 0)
-        self.assertTrue((self.root / 'runtime/monitor.lock').exists())
-        self.assertNotIn('sudo', calls)
+        self.assertNotIn('<switch-client>', calls)
+        self.assertNotIn('<attach-session>', calls)
+
+    def test_unlock_without_options_delegates_to_lh2_reset(self):
+        result, calls = self.run_script('unlock.sh')
+        self.assertEqual(result.returncode, 0)
+        self.assertIn('python <-B> <app/reset_runtime.py>', calls)
+
+    def test_old_unlock_options_are_rejected_without_actions(self):
+        result, calls = self.run_script('unlock.sh', '--stop-service')
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(calls, '')
 
 
 if __name__ == '__main__':

@@ -15,31 +15,41 @@ alert input still depends on the shared mount.
 ```bash
 cd /home/sks/monitor_tools/lh2_leak_monitor
 ./run.sh
+tmux attach -t lh2-monitor
 ```
 
-`run.sh` creates/reconnects to tmux session `lh2-monitor`: LIVE monitoring in
-the left pane, an interactive operator shell in the right pane. If the session
-already exists it only reconnects; it does not launch another monitor. Inside
-tmux it switches clients rather than nesting tmux. Detach with Ctrl+b, then d;
-monitoring continues after detaching or disconnecting SSH. Ctrl+C in the left
-pane stops monitoring. The left pane remains after exit to show the result;
-reconnecting does not restart an exited monitor. There is no automatic restart.
-To start a new run after it exits, close the old session yourself and run again.
-Do not close a session with a live monitor unless you intend to stop monitoring.
+`run.sh` creates detached tmux session `lh2-monitor`, starts LIVE monitoring
+in its left pane, opens an operator shell on the right, and returns to your
+current shell. It does not automatically attach or switch your tmux client.
+An existing session is left untouched and reported as an error. Detach using
+Ctrl+b, then d. Monitoring continues after detaching/disconnecting SSH.
+Ctrl+C in the left pane stops monitoring; a shell remains after normal exit.
+There is no automatic restart. The display and launcher messages are English.
 
-An active systemd LH2 service blocks creation of a new tmux monitoring session.
-`./unlock.sh --check` inspects the lock; `./unlock.sh --stop-service` explicitly
-stops that service (sudo password may be required), then verifies lock release.
-Bare `./unlock.sh` asks for confirmation in an interactive terminal. It never
-deletes the lock file or kills a manual monitor: stop a manual monitor using
-Ctrl+C in its own terminal. Lock files are not stale just because they exist;
-flock is released automatically when the holding process exits.
+To stop/reset the previous LH2 run and prepare a clean start:
+
+```bash
+./unlock.sh
+./run.sh
+```
+
+`unlock.sh` takes no options. It stops the LH2 systemd service if running and clears its failed state if present,
+interrupts this project's monitor if it holds the lock, waits up to 15 seconds
+for lock release, closes only tmux session `lh2-monitor`, and removes configured
+skip/cancel/extend request files. sudo may ask for your password to stop the
+service or remove a root-owned request file. It does not start monitoring,
+operate equipment, delete the lock inode, erase logs/config/credentials, stop
+other tools, disable boot startup, or kill an unidentified process. Reset
+errors are reported and no forced SIGKILL is used. Stopping a monitoring run
+does not undo equipment actions already performed.
 
 Startup waits for 0 and a fresh 0 -> 1 if the input is already 1. Once triggered,
 recovery to 0 does not cancel the shutdown sequence. Start launches live equipment
 control and configured Discord notifications. `daemon/start.sh` is a separate
-systemd background launch; it does not enable boot startup. Choose tmux or
-systemd for a monitoring run; the shared lock prevents simultaneous monitors.
+systemd background launch; it does not enable boot startup. The shared process
+lock prevents simultaneous systemd and tmux monitors. A lock error remains
+visible in the pane if another monitor is already active; reset with unlock.sh
+when you intend to stop the previous monitoring run.
 
 ## Live status display
 
@@ -176,7 +186,7 @@ loading. These tests do not verify real equipment behavior.
 
 ## Service control
 
-Top-level scripts provide preflight checks and plan display. Simulation is under debug/. Service controls
+Top-level scripts provide launching, reset, preflight checks and plan display. Simulation is under debug/. Service controls
 are under daemon/. All scripts use this fixed local
 installation; activating a virtual environment is unnecessary.
 
@@ -202,8 +212,8 @@ To inspect additional logs: `journalctl -u lh2_monitor.service -n 100 --no-pager
 
 ```text
 README.md, *.sh       Guide, preflight checks and plan display
-run.sh               Start/reconnect to the two-pane LH2 tmux session
-unlock.sh            Inspect lock; optionally stop the LH2 service
+run.sh               Create a two-pane LH2 tmux session
+unlock.sh            Reset LH2 monitor, session and pending requests
 .env                 Local credentials (ignored by Git; mode 600)
 app/                 Python entry points, package and compatibility tools
 config/config.toml   Equipment addresses, sequence and timing

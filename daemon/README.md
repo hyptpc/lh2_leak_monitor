@@ -11,3 +11,7 @@ Run from the project root (sudo asks for your password):
 
 These scripts always select /home/sks/monitor_tools/lh2_leak_monitor.
 Service definitions and controls belong to this tool's daemon/ directory.
+
+For the normal tmux workflow use `./run.sh` from the project root, then
+`tmux attach -t lh2-monitor`. `./unlock.sh` performs the LH2 runtime reset
+without options, including stopping this service if it is running.
