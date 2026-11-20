@@ -176,6 +176,18 @@ class AdapterTests(unittest.TestCase):
         notifier.finish()
         self.assertEqual(notifier.threads, [])
 
+    def test_discord_request_has_explicit_user_agent(self):
+        response = MagicMock()
+        response.__enter__.return_value.status = 204
+        notifier = DiscordNotifier('https://example.invalid/not-used', 10, self.log)
+        with patch('urllib.request.urlopen', return_value=response) as send:
+            notifier._deliver('offline test')
+        request = send.call_args.args[0]
+        self.assertEqual(request.get_header('User-agent'), 'LH2Monitor/1.0')
+        self.assertEqual(request.get_header('Content-type'), 'application/json')
+        self.assertEqual(request.get_method(), 'POST')
+        self.assertIn('offline test', request.data.decode())
+
     def test_stalled_notification_does_not_delay_equipment_actions(self):
         config = load_config(ROOT / 'config/config.toml')
         clock = VirtualClock()

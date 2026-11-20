@@ -198,7 +198,8 @@ class DiscordNotifier:
                 content = content[:1950] + ' ... (full details in monitor log)'
             request = Request(self.url, data=json.dumps({
                 'content': content, 'username': 'LH2 Monitor Bot',
-            }).encode('utf-8'), headers={'Content-Type': 'application/json'}, method='POST')
+            }).encode('utf-8'), headers={'Content-Type': 'application/json',
+                                       'User-Agent': 'LH2Monitor/1.0'}, method='POST')
             with urlopen(request, timeout=self.timeout) as response:
                 if response.status != 204:
                     raise RuntimeError(f'HTTP {response.status}')
